@@ -50,6 +50,8 @@
   .banner.info{background:#fdf6e7;border-color:var(--gul);}
   .to-kol{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   svg text{font-family:inherit;}
+  #modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none;align-items:flex-end;justify-content:center;}
+  #modal .boks{background:#fff;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));width:100%;max-width:520px;max-height:75vh;overflow:auto;}
 </style>
 </head>
 <body>
@@ -57,15 +59,19 @@
 <div class="tabs">
   <button id="tab-hjem" class="on" onclick="vis('hjem')"><span class="ikon">🥑</span>I dag</button>
   <button id="tab-vekt" onclick="vis('vekt')"><span class="ikon">📈</span>Vekt</button>
+  <button onclick="kameraKlikk()"><span class="ikon">📷</span>Foto</button>
   <button id="tab-innst" onclick="vis('innst')"><span class="ikon">⚙️</span>Innstillinger</button>
 </div>
 <div id="toast"><span id="toastTxt"></span><button onclick="angre()">Angre</button></div>
+<input id="kameraInn" type="file" accept="image/*" capture="environment" style="display:none" onchange="analyserBilde(this)">
+<div id="modal" onclick="if(event.target===this)lukkModal()"><div class="boks"></div></div>
 <script>
 // ===================== Lagring =====================
 const NØKKEL='mb_state_v1';
 let S=null;
 function last(){try{S=JSON.parse(localStorage.getItem(NØKKEL));}catch(e){S=null;}
-  if(!S)S={profile:null,meals:{lite:400,middels:650,stort:900,snack:200,drikke:150},favs:[],log:{},weights:{},budget:null,budgetInfo:null,lastAdjust:null};}
+  if(!S)S={profile:null,meals:{lite:400,middels:650,stort:900,snack:200,drikke:150},favs:[],log:{},weights:{},budget:null,budgetInfo:null,lastAdjust:null};
+  if(!S.personal)S.personal={notat:'',anbefaling:'',plan:[],varsle:false};}
 function lagre(){try{localStorage.setItem(NØKKEL,JSON.stringify(S));}catch(e){}}
 const iDag=()=>new Date().toLocaleDateString('sv-SE');
 const nå=()=>new Date().toTimeString().slice(0,5);
@@ -148,6 +154,7 @@ function renderHjem(){
     :`<span class="stor" style="color:var(--lilla);">${-igjen}</span> <span style="font-size:18px;font-weight:700;">over – helt ok, i morgen er ny dag 💜</span>`;
   let h=`<h1>🥑 Matbudsjett</h1>`;
   if(S.sisteJusteringMelding){h+=`<div class="banner">${S.sisteJusteringMelding} <button style="border:none;background:none;font-weight:800;cursor:pointer;color:var(--grønn);" onclick="S.sisteJusteringMelding=null;lagre();render()">OK</button></div>`;}
+  h+=smellSjekk();
   if(!Object.keys(S.weights).length){h+=`<div class="banner info">🏖️ Ingen veiinger ennå – null stress. Budsjettet er formelbasert, og den smarte justeringen starter av seg selv når du begynner å veie deg.</div>`;}
   h+=`<div class="card"><div>${status}</div>
     <div class="bar"><div style="width:${pst}%;background:${farge};"></div></div>
@@ -242,6 +249,18 @@ function renderInnst(){
     <label>Drikke</label><input id="m-drikke" type="number" value="${m.drikke}">
     <button class="sekundær" onclick="lagreMåltider()">Lagre knapper</button></div>`;
   if(S.favs.length){h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Favoritter</div>`+S.favs.map((f,i)=>`<div class="rad"><span class="navn">⭐ ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join('')+`</div>`;}
+  const P=S.personal;
+  h+=`<div class="card"><div class="sub" style="font-weight:700;">🩺 Personlige hensyn & spiseplan</div>
+    <div class="sub" style="margin:6px 0;">Fortell appen om medisiner, matlyst eller annet den bør ta hensyn til. Brukes til råd og spiseplan – lagres kun på denne telefonen.</div>
+    <textarea id="p-notat" placeholder="F.eks: Tar ADHD-medisin ca. kl 11, har lite matlyst før kl 20…" style="width:100%;font-size:16px;padding:10px 12px;border:1px solid #ddd;border-radius:12px;min-height:70px;font-family:inherit;">${esc(P.notat||'')}</textarea>
+    <button class="sekundær" onclick="lagrePersonlig()">Lagre hensyn</button>
+    ${aiNøkkel()?`<button class="sekundær" id="aiPlanKnapp" onclick="aiPlan()">✨ Foreslå spiseplan med Claude</button>`:`<div class="sub" style="margin-top:8px;">Legg inn API-nøkkel nedenfor, så kan Claude foreslå en plan tilpasset hensynene dine.</div>`}
+    ${P.anbefaling?`<div class="banner" style="margin-top:10px;">💡 ${esc(P.anbefaling)}</div>`:''}
+    <label>Spiseplan (påminnelser)</label>
+    ${P.plan&&P.plan.length?P.plan.map((x,i)=>`<div class="rad"><span class="sub">${x.t}</span><span class="navn">${esc(x.navn)}</span><button onclick="slettPlan(${i})">✕</button></div>`).join(''):`<div class="sub">Ingen plan ennå – legg til under, eller la Claude foreslå.</div>`}
+    <div style="display:flex;gap:8px;margin-top:8px;"><input id="plan-t" type="time" style="width:140px;"><input id="plan-n" placeholder="F.eks. Lunsj"><button class="sekundær" style="width:auto;margin-top:0;padding:10px 14px;" onclick="leggTilPlan()">＋</button></div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:15px;"><input type="checkbox" style="width:auto;" ${P.varsle?'checked':''} onchange="toggleVarsle(this)"> Minn meg på måltider / varsle før «smell»</label>
+    <div class="sub" style="margin-top:4px;">Du får banner øverst på I dag-siden, og systemvarsel der nettleseren støtter det (appen må være åpen).</div></div>`;
   const nk=aiNøkkel();
   h+=`<div class="card"><div class="sub" style="font-weight:700;">🤖 Claude AI-logging (valgfritt)</div>
     <div class="sub" style="margin:6px 0;">Med en egen API-nøkkel fra Anthropic får du et fritekstfelt på I dag-siden: skriv hva du spiste, så beregner Claude kaloriene. Nøkkelen lagres kun på denne enheten og blir ikke med i backup-filen.</div>
@@ -253,7 +272,7 @@ function renderInnst(){
     <input id="importFil" type="file" accept=".json" style="display:none" onchange="importer(this)">
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div>
-    <div class="sub" style="margin-top:6px;color:#bbb;">Versjon 2026-07-06.2</div></div>`;
+    <div class="sub" style="margin-top:6px;color:#bbb;">Versjon 2026-07-06.3</div></div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -338,6 +357,141 @@ async function aiLogg(){
     toast('⚠️ '+((e&&e.message)||'Noe gikk galt – prøv igjen'));
   }
 }
+// ===================== Foto-analyse =====================
+function kameraKlikk(){
+  if(!aiNøkkel()){toast('Legg inn API-nøkkel i Innstillinger først 🤖');vis('innst');return;}
+  document.getElementById('kameraInn').click();
+}
+function visModal(html){const m=document.getElementById('modal');m.querySelector('.boks').innerHTML=html;m.style.display='flex';}
+function lukkModal(){document.getElementById('modal').style.display='none';}
+function skalerBilde(f){return new Promise((ok,feil)=>{
+  const img=new Image();
+  img.onload=()=>{const maks=1024,sk=Math.min(1,maks/Math.max(img.width,img.height));
+    const c=document.createElement('canvas');c.width=Math.round(img.width*sk);c.height=Math.round(img.height*sk);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    const b64=c.toDataURL('image/jpeg',0.8).split(',')[1];
+    URL.revokeObjectURL(img.src);ok(b64);};
+  img.onerror=()=>feil(new Error('Klarte ikke lese bildet'));
+  img.src=URL.createObjectURL(f);});}
+let fotoPoster=null;
+async function analyserBilde(inp){
+  const f=inp.files[0];inp.value='';if(!f)return;
+  visModal('<div style="text-align:center;padding:30px 10px;"><div style="font-size:40px;">🤖</div><div style="font-weight:700;margin-top:8px;">Analyserer bildet…</div><div class="sub">Tar noen sekunder</div></div>');
+  try{
+    const b64=await skalerBilde(f);
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{
+      'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
+      'anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,
+        system:'Du analyserer matbilder for en norsk kostholdsapp. Identifiser mat og drikke på bildet og estimer kalorier per post ut fra synlig porsjonsstørrelse. Svar KUN med gyldig JSON: {"poster":[{"navn":"kort navn","kcal":heltall}],"kommentar":"én kort setning om hva du ser"} – ingen annen tekst.',
+        messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},{type:'text',text:'Hva er dette, og omtrent hvor mange kalorier?'}]}]})});
+    if(res.status===401||res.status===403)throw new Error('Ugyldig API-nøkkel – sjekk Innstillinger');
+    if(res.status===429)throw new Error('For mange forespørsler – vent litt og prøv igjen');
+    if(!res.ok)throw new Error('API-feil ('+res.status+')');
+    const data=await res.json();
+    let txt=(data.content&&data.content[0]&&data.content[0].text)||'';
+    txt=txt.replace(/```json|```/g,'').trim();
+    const m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('Uventet svar – prøv igjen');
+    const obj=JSON.parse(m[0]);
+    const poster=(obj.poster||[]).map(p=>({navn:String(p.navn||'').slice(0,60),kcal:Math.round(+p.kcal)})).filter(p=>p.navn&&p.kcal>0);
+    if(!poster.length)throw new Error('Fant ingen mat på bildet – prøv et tydeligere bilde');
+    fotoPoster=poster;
+    const sum=poster.reduce((s,p)=>s+p.kcal,0);
+    visModal('<div style="font-weight:800;font-size:18px;margin-bottom:6px;">📷 Claude ser:</div>'
+      +(obj.kommentar?'<div class="sub" style="margin-bottom:8px;">'+esc(obj.kommentar)+'</div>':'')
+      +poster.map(p=>'<div class="rad"><span class="navn">'+esc(p.navn)+'</span><span class="kcal">'+p.kcal+' kcal</span></div>').join('')
+      +'<div style="font-weight:800;margin:10px 0 4px;text-align:right;">Totalt: '+sum+' kcal</div>'
+      +'<button class="primær" onclick="registrerFoto()">✅ Registrer måltid ('+sum+' kcal)</button>'
+      +'<button class="sekundær" onclick="fotoPoster=null;lukkModal()">Avbryt</button>');
+  }catch(e){
+    visModal('<div style="font-weight:800;margin-bottom:6px;">⚠️ '+esc((e&&e.message)||'Noe gikk galt')+'</div><button class="sekundær" onclick="lukkModal()">Lukk</button>');
+  }
+}
+function registrerFoto(){
+  if(!fotoPoster)return;
+  const d=iDag();if(!S.log[d])S.log[d]=[];
+  const start=S.log[d].length;
+  for(const p of fotoPoster)S.log[d].push({t:nå(),name:p.navn,kcal:p.kcal});
+  sisteLoggIdx=start;sisteLoggAntall=fotoPoster.length;
+  const sum=fotoPoster.reduce((s,p)=>s+p.kcal,0);
+  fotoPoster=null;lukkModal();lagre();vis('hjem');
+  toast('📷 Logget '+sum+' kcal fra bildet');
+}
+
+// ===================== Personlige hensyn, spiseplan & smell-varsler =====================
+function lagrePersonlig(){
+  S.personal.notat=document.getElementById('p-notat').value.trim();
+  lagre();toast('Lagret ✅');render();
+}
+function leggTilPlan(){
+  const t=document.getElementById('plan-t').value,n=document.getElementById('plan-n').value.trim();
+  if(!t||!n){alert('Fyll inn både tid og navn 🙂');return;}
+  S.personal.plan.push({t,navn:n});S.personal.plan.sort((a,b)=>a.t<b.t?-1:1);
+  lagre();render();
+}
+function slettPlan(i){S.personal.plan.splice(i,1);lagre();render();}
+function toggleVarsle(el){
+  S.personal.varsle=el.checked;lagre();
+  if(el.checked&&'Notification' in window&&Notification.permission==='default'){try{Notification.requestPermission();}catch(e){}}
+}
+async function aiPlan(){
+  const kn=document.getElementById('aiPlanKnapp');kn.disabled=true;kn.textContent='🤔 Tenker…';
+  try{
+    const p=S.profile;
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{
+      'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
+      'anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,
+        system:'Du er en jordnær norsk kostholdscoach. Lag en enkel daglig spiseplan (4–6 tidspunkter) tilpasset brukerens situasjon og et dagsbudsjett på '+budsjett()+' kcal. Ta særlig hensyn til det brukeren forteller om medisiner og matlyst – f.eks. et solid måltid FØR appetittdempende medisin begynner å virke, små lette poster midt på dagen, og fordel kaloriene slik at kvelden ikke sprekker. Svar KUN med gyldig JSON: {"plan":[{"t":"HH:MM","navn":"kort navn"}],"anbefaling":"2-3 setninger med konkrete, vennlige råd"} – ingen annen tekst.',
+        messages:[{role:'user',content:'Profil: '+(p.sex==='m'?'mann':'kvinne')+', '+p.age+' år, '+p.height+' cm, '+(sisteVekt()||p.weight)+' kg. Mine hensyn: '+(S.personal.notat||'ingen spesielle')}]})});
+    if(res.status===401||res.status===403)throw new Error('Ugyldig API-nøkkel – sjekk Innstillinger');
+    if(!res.ok)throw new Error('API-feil ('+res.status+')');
+    const data=await res.json();
+    let txt=(data.content&&data.content[0]&&data.content[0].text)||'';
+    txt=txt.replace(/```json|```/g,'').trim();
+    const m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('Uventet svar – prøv igjen');
+    const obj=JSON.parse(m[0]);
+    const plan=(obj.plan||[]).map(x=>({t:String(x.t||'').slice(0,5),navn:String(x.navn||'').slice(0,40)})).filter(x=>/^\d\d:\d\d$/.test(x.t)&&x.navn);
+    if(!plan.length)throw new Error('Fikk ingen plan – prøv igjen');
+    S.personal.plan=plan.sort((a,b)=>a.t<b.t?-1:1);
+    S.personal.anbefaling=String(obj.anbefaling||'').slice(0,500);
+    S.personal.varsle=true;
+    if('Notification' in window&&Notification.permission==='default'){try{Notification.requestPermission();}catch(e){}}
+    lagre();render();toast('Spiseplan klar! 🗓️');
+  }catch(e){
+    const kn2=document.getElementById('aiPlanKnapp');
+    if(kn2){kn2.disabled=false;kn2.textContent='✨ Foreslå spiseplan med Claude';}
+    toast('⚠️ '+((e&&e.message)||'Noe gikk galt'));
+  }
+}
+function minutter(t){return +t.slice(0,2)*60+ +t.slice(3,5);}
+function smellSjekk(){
+  const P=S.personal;if(!P||!P.varsle)return '';
+  const d=iDag(),nm=minutter(nå());
+  const logg=S.log[d]||[];
+  const sisteLoggM=logg.length?minutter(logg[logg.length-1].t):null;
+  if(P.plan&&P.plan.length){
+    const forbi=P.plan.filter(x=>minutter(x.t)+45<=nm);
+    if(forbi.length){
+      const siste=forbi[forbi.length-1];
+      if(sisteLoggM===null||sisteLoggM<minutter(siste.t)-30){
+        kanskjeVarsle(d+'-plan-'+siste.t,'⏰ '+siste.navn+' ('+siste.t+') er ikke logget – spis noe nå, så unngår du kveldssmellen!');
+        return '<div class="banner info">⏰ <b>'+esc(siste.navn)+' kl. '+siste.t+'</b> er ikke logget ennå. Litt mat nå = mindre smell i kveld! 💪</div>';
+      }
+    }
+  }
+  if(sisteLoggM!==null&&nm-sisteLoggM>270&&nm>=540&&nm<=1320){
+    kanskjeVarsle(d+'-gap-'+Math.floor(nm/60),'⏰ Over 4,5 timer siden forrige måltid – på tide med litt påfyll!');
+    return '<div class="banner info">⏰ Over 4,5 timer siden forrige måltid. Litt påfyll nå gjør kvelden mye lettere! 🙂</div>';
+  }
+  return '';
+}
+function kanskjeVarsle(nk,tekst){
+  if(S.sisteVarsel===nk)return;
+  S.sisteVarsel=nk;lagre();
+  try{if('Notification' in window&&Notification.permission==='granted')new Notification('Matbudsjett',{body:tekst});}catch(e){}
+}
+
 function slettPost(i){const d=iDag();S.log[d].splice(i,1);lagre();render();}
 function nyEgen(){
   const navn=prompt('Hva spiste du?');if(!navn)return;
@@ -369,7 +523,7 @@ function eksporter(){
 function importer(inp){
   const f=inp.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{try{const ny=JSON.parse(r.result);if(ny&&ny.log&&ny.meals){S=ny;lagre();render();toast('Backup importert ✅');}else alert('Ugyldig fil');}catch(e){alert('Klarte ikke lese filen');}};
+  r.onload=()=>{try{const ny=JSON.parse(r.result);if(ny&&ny.log&&ny.meals){S=ny;if(!S.personal)S.personal={notat:'',anbefaling:'',plan:[],varsle:false};lagre();render();toast('Backup importert ✅');}else alert('Ugyldig fil');}catch(e){alert('Klarte ikke lese filen');}};
   r.readAsText(f);
 }
 function nullstill(){if(confirm('Slette ALT? Dette kan ikke angres (ta backup først!).')){localStorage.removeItem(NØKKEL);last();render();}}
