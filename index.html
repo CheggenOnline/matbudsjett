@@ -75,7 +75,7 @@ function last(){try{S=JSON.parse(localStorage.getItem(NØKKEL));}catch(e){S=null
   if(!S.personal)S.personal={notat:'',anbefaling:'',plan:[],varsle:false};
   if(!S.murph)S.murph={meldinger:[]};}
 function lagre(){try{localStorage.setItem(NØKKEL,JSON.stringify(S));}catch(e){}}
-const iDag=()=>new Date().toLocaleDateString('sv-SE');
+const iDag=()=>new Date(Date.now()-3*3600*1000).toLocaleDateString('sv-SE'); // ny dag starter kl 03:00
 const nå=()=>new Date().toTimeString().slice(0,5);
 
 // ===================== Kalorimotor =====================
@@ -277,7 +277,7 @@ function renderInnst(){
     <input id="importFil" type="file" accept=".json" style="display:none" onchange="importer(this)">
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div>
-    <div class="sub" style="margin-top:6px;color:#bbb;">Versjon 2026-07-06.4</div></div>`;
+    <div class="sub" style="margin-top:6px;color:#bbb;">Versjon 2026-07-07.1</div></div>`;
   document.getElementById('app').innerHTML=h;
 }
 
