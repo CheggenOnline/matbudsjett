@@ -163,6 +163,11 @@ function renderHjem(){
     <button class="k egen" onclick="nyEgen()">＋ Egen…</button>
     ${S.favs.map((f,i)=>`<button class="k fav" onclick="loggMat('${esc(f.name).replace(/'/g,"\\'")}',${f.kcal})">⭐ ${esc(f.name)}<small>${f.kcal} kcal</small></button>`).join('')}
     </div></div>`;
+  if(aiNøkkel()){
+    h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:8px;">🤖 Eller beskriv det du spiste, så regner Claude:</div>
+      <textarea id="aiTekst" placeholder="F.eks: 2 brødskiver med brunost og et glass melk" style="width:100%;font-size:16px;padding:10px 12px;border:1px solid #ddd;border-radius:12px;min-height:64px;font-family:inherit;background:#fff;"></textarea>
+      <button class="primær" id="aiKnapp" onclick="aiLogg()">✨ Beregn og logg</button></div>`;
+  }
   const dagens=S.log[iDag()]||[];
   h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">I dag (${dagens.length} ${dagens.length===1?'post':'poster'})</div>`;
   h+=dagens.length?dagens.map((x,i)=>`<div class="rad"><span class="sub">${x.t}</span><span class="navn">${esc(x.name)}</span><span class="kcal">${x.kcal}</span><button onclick="slettPost(${i})">✕</button></div>`).join('')
@@ -237,12 +242,18 @@ function renderInnst(){
     <label>Drikke</label><input id="m-drikke" type="number" value="${m.drikke}">
     <button class="sekundær" onclick="lagreMåltider()">Lagre knapper</button></div>`;
   if(S.favs.length){h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Favoritter</div>`+S.favs.map((f,i)=>`<div class="rad"><span class="navn">⭐ ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join('')+`</div>`;}
+  const nk=aiNøkkel();
+  h+=`<div class="card"><div class="sub" style="font-weight:700;">🤖 Claude AI-logging (valgfritt)</div>
+    <div class="sub" style="margin:6px 0;">Med en egen API-nøkkel fra Anthropic får du et fritekstfelt på I dag-siden: skriv hva du spiste, så beregner Claude kaloriene. Nøkkelen lagres kun på denne enheten og blir ikke med i backup-filen.</div>
+    <label>API-nøkkel${nk?' (lagret ✅)':''}</label><input id="ai-key" type="password" placeholder="${nk?'••••••••':'sk-ant-…'}" autocomplete="off">
+    <button class="sekundær" onclick="lagreAiNøkkel()">${nk?'Oppdater nøkkel':'Lagre nøkkel'}</button>
+    ${nk?`<button class="sekundær" style="color:#b23;" onclick="fjernAiNøkkel()">Fjern nøkkel (skjuler AI-feltet)</button>`:''}</div>`;
   h+=`<div class="card"><button class="sekundær" onclick="eksporter()">💾 Eksporter backup (fil)</button>
     <button class="sekundær" onclick="document.getElementById('importFil').click()">📂 Importer backup</button>
     <input id="importFil" type="file" accept=".json" style="display:none" onchange="importer(this)">
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div>
-    <div class="sub" style="margin-top:6px;color:#bbb;">Versjon 2026-07-06.1</div></div>`;
+    <div class="sub" style="margin-top:6px;color:#bbb;">Versjon 2026-07-06.2</div></div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -268,20 +279,64 @@ function fullførOnboarding(){
 }
 
 // ===================== Handlinger =====================
-let sisteLoggIdx=null;
+let sisteLoggIdx=null,sisteLoggAntall=1;
 const heia=['Registrert! 🎯','Boom – 3 sekunder, ferdig. 💪','Logget! Du er på saken. 🥑','Inn i boka! ⭐','Nice. Neste! ✅'];
 function loggMat(navn,kcal){
   const d=iDag();
   if(!S.log[d])S.log[d]=[];
   S.log[d].push({t:nå(),name:navn,kcal:kcal});
-  sisteLoggIdx=S.log[d].length-1;
+  sisteLoggIdx=S.log[d].length-1;sisteLoggAntall=1;
   lagre();render();
   toast(heia[Math.floor(Math.random()*heia.length)]+' '+navn+' · '+kcal+' kcal');
 }
 function angre(){
   const d=iDag();
-  if(sisteLoggIdx!=null&&S.log[d]&&S.log[d][sisteLoggIdx]){S.log[d].splice(sisteLoggIdx,1);sisteLoggIdx=null;lagre();render();}
+  if(sisteLoggIdx!=null&&S.log[d]&&S.log[d][sisteLoggIdx]){S.log[d].splice(sisteLoggIdx,sisteLoggAntall);sisteLoggIdx=null;sisteLoggAntall=1;lagre();render();}
   document.getElementById('toast').style.display='none';
+}
+
+// ===================== Claude AI-logging =====================
+const AINØKKEL='mb_claude_key';
+function aiNøkkel(){try{return localStorage.getItem(AINØKKEL)||'';}catch(e){return '';}}
+function lagreAiNøkkel(){
+  const v=document.getElementById('ai-key').value.trim();
+  if(!v){alert('Lim inn nøkkelen først 🙂');return;}
+  localStorage.setItem(AINØKKEL,v);toast('AI-logging aktivert! 🤖');render();
+}
+function fjernAiNøkkel(){localStorage.removeItem(AINØKKEL);toast('Nøkkel fjernet');render();}
+async function aiLogg(){
+  const inp=document.getElementById('aiTekst'),knapp=document.getElementById('aiKnapp');
+  const tekst=(inp.value||'').trim();
+  if(!tekst){inp.focus();return;}
+  knapp.disabled=true;knapp.textContent='🤔 Regner…';
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{
+      'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
+      'anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,
+        system:'Du er kaloriberegner i en norsk kostholdsapp. Brukeren beskriver hva han har spist/drukket. Estimer kalorier per post med vanlige norske porsjonsstørrelser (brødskive m/pålegg ~120-180 kcal, glass melk ~100, middagsporsjon 500-800 osv). Er mengden uklar, anta en normal porsjon. Svar KUN med gyldig JSON: {"poster":[{"navn":"kort navn","kcal":heltall}]} – ingen annen tekst.',
+        messages:[{role:'user',content:tekst}]})});
+    if(res.status===401||res.status===403)throw new Error('Ugyldig API-nøkkel – sjekk Innstillinger');
+    if(res.status===429)throw new Error('For mange forespørsler – vent litt og prøv igjen');
+    if(!res.ok)throw new Error('API-feil ('+res.status+')');
+    const data=await res.json();
+    let txt=(data.content&&data.content[0]&&data.content[0].text)||'';
+    txt=txt.replace(/```json|```/g,'').trim();
+    const m=txt.match(/\{[\s\S]*\}/);
+    if(!m)throw new Error('Uventet svar – prøv igjen');
+    const poster=(JSON.parse(m[0]).poster||[]).map(p=>({navn:String(p.navn||'').slice(0,60),kcal:Math.round(+p.kcal)})).filter(p=>p.navn&&p.kcal>0);
+    if(!poster.length)throw new Error('Fant ingen matposter – prøv å beskrive litt mer');
+    const d=iDag();if(!S.log[d])S.log[d]=[];
+    const start=S.log[d].length;
+    for(const p of poster)S.log[d].push({t:nå(),name:p.navn,kcal:p.kcal});
+    sisteLoggIdx=start;sisteLoggAntall=poster.length;
+    lagre();render();
+    const sum=poster.reduce((s,p)=>s+p.kcal,0);
+    toast('🤖 Logget '+poster.length+(poster.length>1?' poster':' post')+' · '+sum+' kcal');
+  }catch(e){
+    if(knapp){knapp.disabled=false;knapp.textContent='✨ Beregn og logg';}
+    toast('⚠️ '+((e&&e.message)||'Noe gikk galt – prøv igjen'));
+  }
 }
 function slettPost(i){const d=iDag();S.log[d].splice(i,1);lagre();render();}
 function nyEgen(){
