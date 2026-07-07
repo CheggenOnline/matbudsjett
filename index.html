@@ -58,7 +58,7 @@
 <div id="app"></div>
 <div class="tabs">
   <button id="tab-hjem" class="on" onclick="vis('hjem')"><span class="ikon">🥑</span>I dag</button>
-  <button id="tab-vekt" onclick="vis('vekt')"><span class="ikon">📈</span>Vekt</button>
+  <button id="tab-vekt" onclick="vis('vekt')"><span class="ikon">📈</span>Utvikling</button>
   <button id="tab-trening" onclick="vis('trening')"><span class="ikon">💪</span>Trening</button>
   <button id="tab-chat" onclick="vis('chat')"><span class="ikon">💬</span>Murph</button>
   <button id="tab-innst" onclick="vis('innst')"><span class="ikon">⚙️</span>Innst.</button>
@@ -134,6 +134,7 @@ function kanskjeJuster(){
 
 // ===================== Visninger =====================
 let aktivFane='hjem';
+let avansertÅpen=false;
 function vis(f){aktivFane=f;
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
   document.getElementById('tab-'+f).classList.add('on');
@@ -171,15 +172,11 @@ function renderHjem(){
     <button class="k" onclick="loggMat('Stort måltid',${m.stort})">🍽️ Stort måltid<small>${m.stort} kcal</small></button>
     <button class="k snack" onclick="loggMat('Snack',${m.snack})">🍪 Snack<small>${m.snack} kcal</small></button>
     <button class="k drikke" onclick="loggMat('Drikke',${m.drikke})">🥤 Drikke<small>${m.drikke} kcal</small></button>
+    ${aiNøkkel()?`<button class="k" style="background:#7c6bb0;" onclick="åpneAiModal()">🤖 Beskriv måltid<small>Claude teller kcal</small></button>`:''}
     <button class="k" style="background:#5a5f9e;" onclick="kameraKlikk()">📷 Ta / velg bilde<small>Claude teller kcal</small></button>
     <button class="k egen" onclick="nyEgen()">＋ Egen…</button>
     ${S.favs.map((f,i)=>`<button class="k fav" onclick="loggMat('${esc(f.name).replace(/'/g,"\\'")}',${f.kcal})">⭐ ${esc(f.name)}<small>${f.kcal} kcal</small></button>`).join('')}
     </div></div>`;
-  if(aiNøkkel()){
-    h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:8px;">🤖 Eller beskriv det du spiste, så regner Claude:</div>
-      <textarea id="aiTekst" placeholder="F.eks: 2 brødskiver med brunost og et glass melk" style="width:100%;font-size:16px;padding:10px 12px;border:1px solid #ddd;border-radius:12px;min-height:64px;font-family:inherit;background:#fff;"></textarea>
-      <button class="primær" id="aiKnapp" onclick="aiLogg()">✨ Beregn og logg</button></div>`;
-  }
   const dagens=S.log[iDag()]||[];
   h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">I dag (${dagens.length} ${dagens.length===1?'post':'poster'})</div>`;
   h+=dagens.length?dagens.map((x,i)=>`<div class="rad"><span class="sub">${x.t}</span><span class="navn">${esc(x.name)}</span><span class="kcal">${x.kcal}</span><button onclick="slettPost(${i})">✕</button></div>`).join('')
@@ -191,7 +188,7 @@ function renderHjem(){
 function renderVekt(){
   const tr=trendSerie();
   const idag=iDag();
-  let h=`<h1>📈 Vekt</h1>`;
+  let h=`<h1>📈 Utvikling</h1>`;
   h+=`<div class="card"><label>Dagens vekt (kg)</label>
     <div style="display:flex;gap:10px;"><input id="vektInn" type="number" step="0.1" inputmode="decimal" placeholder="${sisteVekt()||''}" value="${S.weights[idag]||''}">
     <button class="primær" style="width:auto;margin-top:0;padding:10px 20px;" onclick="lagreVekt()">Lagre</button></div>
@@ -207,9 +204,34 @@ function renderVekt(){
   } else {
     h+=`<div class="card"><div class="sub">Ingen veiinger ennå. På ferie? Perfekt – bare logg maten du orker, så starter vi vekta når dere er hjemme. 🏖️</div></div>`;
   }
+  h+=inntaksGraf();
   const ds=Object.keys(S.weights).sort().reverse().slice(0,10);
   if(ds.length){h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Siste veiinger</div>`+ds.map(d=>`<div class="rad"><span class="navn">${d}</span><span class="kcal">${S.weights[d]} kg</span><button onclick="slettVekt('${d}')">✕</button></div>`).join('')+`</div>`;}
   document.getElementById('app').innerHTML=h;
+}
+function inntaksGraf(){
+  const dager=[...Array(14)].map((_,i)=>new Date(Date.now()-(13-i)*86400000).toLocaleDateString('sv-SE'));
+  const verdier=dager.map(d=>dagsTotal(d));
+  if(!verdier.some(v=>v>0))return `<div class="card"><div class="sub" style="font-weight:700;">🍽️ Inntak siste 14 dager</div><div class="sub" style="margin-top:6px;">Ingen logget mat ennå – grafen dukker opp når du logger. 🙂</div></div>`;
+  const b=budsjett()||2000;
+  const W=440,H=170,P=16;
+  const max=Math.max(b*1.15,...verdier);
+  const bw=(W-2*P)/14;
+  const y=v=>H-P-(H-2*P)*(v/max);
+  const stolper=verdier.map((v,i)=>{
+    if(!v)return '';
+    const farge=v<=b?'#3f9e4f':'#7c6bb0';
+    return `<rect x="${(P+i*bw+2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${(bw-4).toFixed(1)}" height="${(H-P-y(v)).toFixed(1)}" rx="3" fill="${farge}"/>`;
+  }).join('');
+  const bl=y(b).toFixed(1);
+  return `<div class="card"><div class="sub" style="font-weight:700;">🍽️ Inntak siste 14 dager</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;margin-top:8px;">
+    ${stolper}
+    <line x1="${P}" y1="${bl}" x2="${W-P}" y2="${bl}" stroke="#0e7c5b" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="${W-P}" y="${bl-5}" font-size="11" fill="#0e7c5b" text-anchor="end" font-weight="700">budsjett ${b}</text>
+    <text x="${P}" y="${H-2}" font-size="10" fill="#999">${dager[0].slice(5)}</text>
+    <text x="${W-P}" y="${H-2}" font-size="10" fill="#999" text-anchor="end">i dag</text></svg>
+    <div class="sub">Grønn stolpe = innenfor budsjett · lilla = over · stiplet strek = budsjettet ditt</div></div>`;
 }
 function graf(tr){
   const pts=tr.slice(-60);
@@ -328,6 +350,13 @@ function lagreAiNøkkel(){
   localStorage.setItem(AINØKKEL,v);toast('AI-logging aktivert! 🤖');render();
 }
 function fjernAiNøkkel(){localStorage.removeItem(AINØKKEL);toast('Nøkkel fjernet');render();}
+function åpneAiModal(){
+  visModal('<div style="font-weight:800;font-size:18px;margin-bottom:8px;">🤖 Hva har du spist?</div>'
+    +'<textarea id="aiTekst" placeholder="F.eks: 2 brødskiver med brunost og et glass melk" style="width:100%;font-size:16px;padding:10px 12px;border:1px solid #ddd;border-radius:12px;min-height:80px;font-family:inherit;box-sizing:border-box;"></textarea>'
+    +'<button class="primær" id="aiKnapp" onclick="aiLogg()">✨ Beregn og logg</button>'
+    +'<button class="sekundær" onclick="lukkModal()">Avbryt</button>');
+  setTimeout(()=>{const t=document.getElementById('aiTekst');if(t)t.focus();},100);
+}
 async function aiLogg(){
   const inp=document.getElementById('aiTekst'),knapp=document.getElementById('aiKnapp');
   const tekst=(inp.value||'').trim();
@@ -354,7 +383,7 @@ async function aiLogg(){
     const start=S.log[d].length;
     for(const p of poster)S.log[d].push({t:nå(),name:p.navn,kcal:p.kcal});
     sisteLoggIdx=start;sisteLoggAntall=poster.length;
-    lagre();render();
+    lukkModal();lagre();render();
     const sum=poster.reduce((s,p)=>s+p.kcal,0);
     toast('🤖 Logget '+poster.length+(poster.length>1?' poster':' post')+' · '+sum+' kcal');
   }catch(e){
