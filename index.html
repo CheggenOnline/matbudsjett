@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Matbudsjett</title>
+<title>Murph</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="mb-apple.png">
 <link rel="icon" type="image/png" sizes="192x192" href="mb-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Matbudsjett">
+<meta name="apple-mobile-web-app-title" content="Murph">
 <meta name="theme-color" content="#0e7c5b">
 <style>
   :root{--grønn:#0e7c5b;--lysgrønn:#3f9e4f;--krem:#f6f3ea;--mørk:#1f2d27;--gul:#e8a13c;--lilla:#7c6bb0;}
@@ -57,7 +57,7 @@
 <body>
 <div id="app"></div>
 <div class="tabs">
-  <button id="tab-hjem" class="on" onclick="vis('hjem')"><span class="ikon">🥑</span>I dag</button>
+  <button id="tab-hjem" class="on" onclick="vis('hjem')"><span class="ikon">🥑</span>Mat</button>
   <button id="tab-vekt" onclick="vis('vekt')"><span class="ikon">📈</span>Utvikling</button>
   <button id="tab-trening" onclick="vis('trening')"><span class="ikon">💪</span>Trening</button>
   <button id="tab-chat" onclick="vis('chat')"><span class="ikon">💬</span>Murph</button>
@@ -73,7 +73,8 @@ let S=null;
 function last(){try{S=JSON.parse(localStorage.getItem(NØKKEL));}catch(e){S=null;}
   if(!S)S={profile:null,meals:{lite:400,middels:650,stort:900,snack:200,drikke:150},favs:[],log:{},weights:{},budget:null,budgetInfo:null,lastAdjust:null};
   if(!S.personal)S.personal={notat:'',anbefaling:'',plan:[],varsle:false};
-  if(!S.murph)S.murph={meldinger:[]};}
+  if(!S.murph)S.murph={meldinger:[]};
+  if(S.visKnapper===undefined)S.visKnapper=true;}
 function lagre(){try{localStorage.setItem(NØKKEL,JSON.stringify(S));}catch(e){}}
 const iDag=()=>new Date(Date.now()-3*3600*1000).toLocaleDateString('sv-SE'); // ny dag starter kl 03:00
 const nå=()=>new Date().toTimeString().slice(0,5);
@@ -159,26 +160,25 @@ function renderHjem(){
   const farge=igjen>=0?(pst<80?'#3f9e4f':'#e8a13c'):'#7c6bb0';
   const status=igjen>=0?`<span class="stor">${igjen}</span> <span style="font-size:18px;font-weight:700;">kcal igjen i dag</span>`
     :`<span class="stor" style="color:var(--lilla);">${-igjen}</span> <span style="font-size:18px;font-weight:700;">over – helt ok, i morgen er ny dag 💜</span>`;
-  let h=`<h1>🥑 Matbudsjett</h1>`;
+  let h=`<h1>🥑 Murph</h1>`;
   if(S.sisteJusteringMelding){h+=`<div class="banner">${S.sisteJusteringMelding} <button style="border:none;background:none;font-weight:800;cursor:pointer;color:var(--grønn);" onclick="S.sisteJusteringMelding=null;lagre();render()">OK</button></div>`;}
   h+=smellSjekk();
   if(!Object.keys(S.weights).length){h+=`<div class="banner info">🏖️ Ingen veiinger ennå – null stress. Budsjettet er formelbasert, og den smarte justeringen starter av seg selv når du begynner å veie deg.</div>`;}
   h+=`<div class="card"><div>${status}</div>
     <div class="bar"><div style="width:${pst}%;background:${farge};"></div></div>
     <div class="sub">Budsjett: ${b} kcal · Logget: ${brukt} kcal${S.budgetInfo&&S.budgetInfo.source==='auto'?' · 📊 auto-justert':''}</div>
-    ${S.statusRåd&&S.statusRåd.n&&S.statusRåd.n.startsWith(iDag())?`<div class="sub" style="margin-top:8px;color:var(--grønn);font-weight:600;">🤖 ${esc(S.statusRåd.t)}</div>`:''}</div>`;
+    ${S.statusRåd&&S.statusRåd.n&&S.statusRåd.n.startsWith(iDag())?`<div class="sub" style="margin-top:8px;color:var(--grønn);font-weight:600;">🤖 ${esc(S.statusRåd.t)} <button style="border:none;background:none;color:var(--lilla);font-weight:800;cursor:pointer;padding:0;font-size:13px;text-decoration:underline;" onclick="lagMatplan()">👉 Trykk her for konkret matplan</button></div>`:''}</div>`;
   const m=S.meals;
   h+=`<div class="card"><div class="sub" style="margin-bottom:8px;font-weight:700;">Trykk én gang – ferdig logget:</div>
     <div class="knapper">
-    <button class="k" onclick="loggMat('Lite måltid',${m.lite})">🍽️ Lite måltid<small>${m.lite} kcal</small></button>
+    ${S.visKnapper?`<button class="k" onclick="loggMat('Lite måltid',${m.lite})">🍽️ Lite måltid<small>${m.lite} kcal</small></button>
     <button class="k" onclick="loggMat('Middels måltid',${m.middels})">🍽️ Middels måltid<small>${m.middels} kcal</small></button>
     <button class="k" onclick="loggMat('Stort måltid',${m.stort})">🍽️ Stort måltid<small>${m.stort} kcal</small></button>
     <button class="k snack" onclick="loggMat('Snack',${m.snack})">🍪 Snack<small>${m.snack} kcal</small></button>
     <button class="k drikke" onclick="loggMat('Drikke',${m.drikke})">🥤 Drikke<small>${m.drikke} kcal</small></button>
+    ${S.favs.map((f,i)=>`<button class="k fav" onclick="loggMat('${esc(f.name).replace(/'/g,"\\'")}',${f.kcal})">⭐ ${esc(f.name)}<small>${f.kcal} kcal</small></button>`).join('')}`:''}
     ${aiNøkkel()?`<button class="k" style="background:#7c6bb0;" onclick="åpneAiModal()">🤖 Beskriv måltid<small>Claude teller kcal</small></button>`:''}
     <button class="k" style="background:#5a5f9e;" onclick="kameraKlikk()">📷 Ta / velg bilde<small>Claude teller kcal</small></button>
-    <button class="k egen" onclick="nyEgen()">＋ Egen…</button>
-    ${S.favs.map((f,i)=>`<button class="k fav" onclick="loggMat('${esc(f.name).replace(/'/g,"\\'")}',${f.kcal})">⭐ ${esc(f.name)}<small>${f.kcal} kcal</small></button>`).join('')}
     </div></div>`;
   if(S.personal&&S.personal.plan&&S.personal.plan.length){
     const nm=minutter(nå());
@@ -198,6 +198,12 @@ function renderHjem(){
     :`<div class="sub" style="padding:8px 0;">Ingenting logget ennå i dag. Ett trykk, så er du i gang! 👆</div>`;
   if(dagens.length>3)h+=`<button class="sekundær" style="margin-top:8px;" onclick="dagensÅpen=!dagensÅpen;render()">${dagensÅpen?'▴ Vis færre':'▾ Vis alle ('+dagens.length+')'}</button>`;
   h+=`</div>`;
+  if(S.dagPlan&&S.dagPlan.d===iDag()&&S.dagPlan.poster&&S.dagPlan.poster.length){
+    h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">🍽️ Matplan for resten av dagen</div>`;
+    if(S.dagPlan.kommentar)h+=`<div class="sub" style="margin-bottom:4px;">${esc(S.dagPlan.kommentar)}</div>`;
+    h+=S.dagPlan.poster.map(x=>`<div class="rad"><span class="sub" style="min-width:46px;">${esc(x.t)}</span><span class="navn">${esc(x.tekst)}</span><span class="kcal">${x.kcal?x.kcal:''}</span></div>`).join('');
+    h+=`<button class="sekundær" style="margin-top:8px;" onclick="S.dagPlan=null;lagre();render()">Fjern planen</button></div>`;
+  }
   document.getElementById('app').innerHTML=h;
 }
 
@@ -284,6 +290,8 @@ function renderInnst(){
     <button class="primær" onclick="lagreProfil()">Lagre profil</button>
     <div class="sub" style="margin-top:8px;">Budsjettet regnes ut fra dette – og finjusterer seg selv ukentlig ut fra faktisk inntak og vekttrend.</div></div>`;
   const m=S.meals;
+  h+=`<div class="card"><label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:0;"><input type="checkbox" style="width:auto;" ${S.visKnapper?'checked':''} onchange="S.visKnapper=this.checked;lagre();toast(this.checked?'Hurtigknapper på ✅':'Viser kun foto og beskriv 📷🤖')"> Vis hurtigknapper på Mat-siden</label>
+    <div class="sub" style="margin-top:6px;">Av = kun «📷 Ta/velg bilde» og «🤖 Beskriv måltid» vises.</div></div>`;
   h+=`<div class="card"><div class="sub" style="font-weight:700;">Kalorier per knapp (juster hvis anslagene bommer)</div>
     <div class="to-kol"><div><label>Lite måltid</label><input id="m-lite" type="number" value="${m.lite}"></div>
     <div><label>Middels måltid</label><input id="m-middels" type="number" value="${m.middels}"></div></div>
@@ -291,7 +299,7 @@ function renderInnst(){
     <div><label>Snack</label><input id="m-snack" type="number" value="${m.snack}"></div></div>
     <label>Drikke</label><input id="m-drikke" type="number" value="${m.drikke}">
     <button class="sekundær" onclick="lagreMåltider()">Lagre knapper</button></div>`;
-  if(S.favs.length){h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Favoritter</div>`+S.favs.map((f,i)=>`<div class="rad"><span class="navn">⭐ ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join('')+`</div>`;}
+  h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Egne knapper</div>`+(S.favs.length?S.favs.map((f,i)=>`<div class="rad"><span class="navn">⭐ ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join(''):`<div class="sub">Ingen egne knapper ennå.</div>`)+`<button class="sekundær" style="margin-top:8px;" onclick="nyFavKnapp()">＋ Legg til egen knapp</button></div>`;
   if(!aiNøkkel()){
     h+=`<div class="card"><div class="sub" style="font-weight:700;">🔑 Aktiver AI-funksjoner</div>
       <div class="sub" style="margin:6px 0;">Skriv inn innloggingskoden, så aktiveres smart logging, foto, Murph og råd – uten å hanskes med API-nøkler.</div>
@@ -324,12 +332,12 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.3</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.4</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
 function renderOnboarding(){
-  document.getElementById('app').innerHTML=`<h1>🥑 Velkommen!</h1>
+  document.getElementById('app').innerHTML=`<h1>🥑 Velkommen til Murph!</h1>
   <div class="card"><div class="sub" style="font-size:14px;margin-bottom:6px;">Tre ting, så er du i gang. Appen regner ut et dagsbudsjett og justerer det selv etter hvert som den blir kjent med kroppen din. Ingen kaloritabeller, ingen lesing – bare store knapper.</div>
     <div class="to-kol"><div><label>Høyde (cm)</label><input id="o-h" type="number" inputmode="numeric" placeholder="180"></div>
     <div><label>Vekt (kg)</label><input id="o-w" type="number" step="0.1" inputmode="decimal" placeholder="90"></div></div>
@@ -359,7 +367,7 @@ function loggMat(navn,kcal){
   sisteLoggIdx=S.log[d].length-1;sisteLoggAntall=1;
   lagre();render();
   toast(heia[Math.floor(Math.random()*heia.length)]+' '+navn+' · '+kcal+' kcal');
-  sjekkOversprekk();oppdaterStatusRåd(true);
+  oppdaterStatusRåd(true);
 }
 function angre(){
   const d=iDag();
@@ -404,83 +412,30 @@ async function oppdaterStatusRåd(tving){
   }catch(e){}
   statusRådVenter=false;
 }
-function sjekkOversprekk(){
+async function lagMatplan(){
   if(!aiNøkkel()||!S.profile)return;
-  const d=iDag(),b=budsjett();
-  if(dagsTotal(d)>b&&S.spurtRåd!==d){
-    S.spurtRåd=d;lagre();
-    visModal('<div style="font-weight:800;font-size:18px;margin-bottom:6px;">Du er over dagsbudsjettet 💜</div>'
-      +'<div class="sub" style="font-size:14px;margin-bottom:8px;">Helt ok – én dag velter ingenting. Vil du ha råd for resten av dagen, og hva du kan justere i morgen for å lande fint?</div>'
-      +'<button class="primær" onclick="hentSprekkRåd()">Ja, gi meg råd 🤖</button>'
-      +'<button class="sekundær" onclick="lukkModal()">Nei takk</button>');
-  }
-}
-async function hentSprekkRåd(){
-  visModal('<div style="text-align:center;padding:26px 10px;"><div style="font-size:38px;">🤖</div><div style="font-weight:700;margin-top:8px;">Murph tenker…</div></div>');
+  visModal('<div style="text-align:center;padding:26px 10px;"><div style="font-size:38px;">🤖</div><div style="font-weight:700;margin-top:8px;">Murph lager matplan…</div></div>');
   try{
     const d=iDag();
-    const logg=(S.log[d]||[]).map(x=>x.t+' '+x.name+' ('+x.kcal+')').join(', ');
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{
-      'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
-      'anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,
-        system:'Du er Murph, varm norsk kostholdscoach. Brukeren har gått over dagsbudsjettet. Svar på norsk i to korte deler med overskriftene «Resten av dagen:» og «I morgen:» – konkrete, snille råd basert på hva som faktisk ble spist i dag (maks 90 ord totalt). Aldri skam.',
-        messages:[{role:'user',content:'Klokka '+nå()+'. Budsjett '+budsjett()+', spist '+dagsTotal(d)+' kcal i dag: '+logg+'. Spiseplan: '+((S.personal.plan||[]).map(x=>x.t+' '+x.navn).join(', ')||'ingen')+'. Om meg: '+(S.personal.notat||'')}]})});
-    if(!res.ok)throw new Error('API-feil ('+res.status+')');
-    const data=await res.json();
-    const t=((data.content&&data.content[0]&&data.content[0].text)||'').trim();
-    visModal('<div style="font-weight:800;font-size:18px;margin-bottom:8px;">🤖 Murphs råd</div><div style="font-size:15px;white-space:pre-wrap;">'+esc(t)+'</div><button class="primær" onclick="lukkModal()">Takk! 💪</button>');
-  }catch(e){
-    visModal('<div style="font-weight:800;">⚠️ '+esc(e.message||'Noe gikk galt')+'</div><button class="sekundær" onclick="lukkModal()">Lukk</button>');
-  }
-}
-function aiNøkkel(){try{return localStorage.getItem(AINØKKEL)||'';}catch(e){return '';}}
-function lagreAiNøkkel(){
-  const v=document.getElementById('ai-key').value.trim();
-  if(!v){alert('Lim inn nøkkelen først 🙂');return;}
-  localStorage.setItem(AINØKKEL,v);toast('AI-logging aktivert! 🤖');render();
-}
-function fjernAiNøkkel(){localStorage.removeItem(AINØKKEL);toast('Nøkkel fjernet');render();}
-function åpneAiModal(){
-  visModal('<div style="font-weight:800;font-size:18px;margin-bottom:8px;">🤖 Hva har du spist?</div>'
-    +'<textarea id="aiTekst" placeholder="F.eks: 2 brødskiver med brunost og et glass melk" style="width:100%;font-size:16px;padding:10px 12px;border:1px solid #ddd;border-radius:12px;min-height:80px;font-family:inherit;box-sizing:border-box;"></textarea>'
-    +'<button class="primær" id="aiKnapp" onclick="aiLogg()">✨ Beregn og logg</button>'
-    +'<button class="sekundær" onclick="lukkModal()">Avbryt</button>');
-  setTimeout(()=>{const t=document.getElementById('aiTekst');if(t)t.focus();},100);
-}
-async function aiLogg(){
-  const inp=document.getElementById('aiTekst'),knapp=document.getElementById('aiKnapp');
-  const tekst=(inp.value||'').trim();
-  if(!tekst){inp.focus();return;}
-  knapp.disabled=true;knapp.textContent='🤔 Regner…';
-  try{
+    const logg=(S.log[d]||[]).map(x=>x.t+' '+x.name+' ('+x.kcal+')').join(', ')||'ingenting';
     const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{
       'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
       'anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,
-        system:'Du er kaloriberegner i en norsk kostholdsapp. Brukeren beskriver hva han har spist/drukket. Estimer kalorier per post med vanlige norske porsjonsstørrelser (brødskive m/pålegg ~120-180 kcal, glass melk ~100, middagsporsjon 500-800 osv). Er mengden uklar, anta en normal porsjon. Svar KUN med gyldig JSON: {"poster":[{"navn":"kort navn","kcal":heltall}]} – ingen annen tekst.',
-        messages:[{role:'user',content:tekst}]})});
-    if(res.status===401||res.status===403)throw new Error('Ugyldig API-nøkkel – sjekk Innstillinger');
-    if(res.status===429)throw new Error('For mange forespørsler – vent litt og prøv igjen');
+        system:'Du er Murph, varm norsk kostholdscoach. Lag en KONKRET matplan for resten av dagen (fra klokkeslettet nå til leggetid) med 1-4 poster. Er brukeren over budsjett: gjør resten lett og snill, og la kommentaren nevne én justering for i morgen. Er det budsjett igjen: fordel det fornuftig. Ta hensyn til spiseplan og brukerens info. Svar KUN med gyldig JSON: {"poster":[{"t":"HH:MM","tekst":"konkret matforslag","kcal":heltall}],"kommentar":"én kort, varm setning"}',
+        messages:[{role:'user',content:'Klokka '+nå()+'. Budsjett '+budsjett()+' kcal, spist '+dagsTotal(d)+' ('+logg+'). Spiseplan: '+((S.personal.plan||[]).map(x=>x.t+' '+x.navn).join(', ')||'ingen')+'. Om meg: '+(S.personal.notat||'')}]})});
     if(!res.ok)throw new Error('API-feil ('+res.status+')');
     const data=await res.json();
-    let txt=(data.content&&data.content[0]&&data.content[0].text)||'';
-    txt=txt.replace(/```json|```/g,'').trim();
-    const m=txt.match(/\{[\s\S]*\}/);
-    if(!m)throw new Error('Uventet svar – prøv igjen');
-    const poster=(JSON.parse(m[0]).poster||[]).map(p=>({navn:String(p.navn||'').slice(0,60),kcal:Math.round(+p.kcal)})).filter(p=>p.navn&&p.kcal>0);
-    if(!poster.length)throw new Error('Fant ingen matposter – prøv å beskrive litt mer');
-    const d=iDag();if(!S.log[d])S.log[d]=[];
-    const start=S.log[d].length;
-    for(const p of poster)S.log[d].push({t:nå(),name:p.navn,kcal:p.kcal});
-    sisteLoggIdx=start;sisteLoggAntall=poster.length;
-    lukkModal();lagre();render();
-    const sum=poster.reduce((s,p)=>s+p.kcal,0);
-    toast('🤖 Logget '+poster.length+(poster.length>1?' poster':' post')+' · '+sum+' kcal');
-    sjekkOversprekk();oppdaterStatusRåd(true);
+    let txt=((data.content&&data.content[0]&&data.content[0].text)||'').replace(/```json|```/g,'').trim();
+    const mm=txt.match(/\{[\s\S]*\}/);if(!mm)throw new Error('Uventet svar – prøv igjen');
+    const obj=JSON.parse(mm[0]);
+    const poster=(obj.poster||[]).map(x=>({t:String(x.t||'').slice(0,5),tekst:String(x.tekst||'').slice(0,90),kcal:Math.round(+x.kcal)||null})).filter(x=>x.tekst);
+    if(!poster.length)throw new Error('Fikk ingen plan – prøv igjen');
+    S.dagPlan={d,poster,kommentar:String(obj.kommentar||'').slice(0,200)};
+    lagre();lukkModal();vis('hjem');
+    toast('Matplan klar – se nederst! 🍽️');
   }catch(e){
-    if(knapp){knapp.disabled=false;knapp.textContent='✨ Beregn og logg';}
-    toast('⚠️ '+((e&&e.message)||'Noe gikk galt – prøv igjen'));
+    visModal('<div style="font-weight:800;">⚠️ '+esc((e&&e.message)||'Noe gikk galt')+'</div><button class="sekundær" onclick="lukkModal()">Lukk</button>');
   }
 }
 // ===================== Foto-analyse =====================
@@ -542,7 +497,7 @@ function registrerFoto(){
   const sum=fotoPoster.reduce((s,p)=>s+p.kcal,0);
   fotoPoster=null;lukkModal();lagre();vis('hjem');
   toast('📷 Logget '+sum+' kcal fra bildet');
-  sjekkOversprekk();oppdaterStatusRåd(true);
+  oppdaterStatusRåd(true);
 }
 
 // ===================== Personlige hensyn, spiseplan & smell-varsler =====================
@@ -616,7 +571,7 @@ function smellSjekk(){
 function kanskjeVarsle(nk,tekst){
   if(S.sisteVarsel===nk)return;
   S.sisteVarsel=nk;lagre();
-  try{if('Notification' in window&&Notification.permission==='granted')new Notification('Matbudsjett',{body:tekst});}catch(e){}
+  try{if('Notification' in window&&Notification.permission==='granted')new Notification('Murph',{body:tekst});}catch(e){}
 }
 
 // ===================== Trening (under utvikling) =====================
@@ -730,6 +685,11 @@ function nyEgen(){
   loggMat(navn,kcal);
 }
 function slettFav(i){S.favs.splice(i,1);lagre();render();}
+function nyFavKnapp(){
+  const navn=prompt('Navn på knappen (f.eks. Havregrøt):');if(!navn)return;
+  const kcal=parseInt(prompt('Kalorier for ett trykk:'),10);if(!kcal)return;
+  S.favs.push({name:navn.trim(),kcal});lagre();render();toast('Knapp lagt til ⭐');
+}
 function lagreVekt(){
   const v=parseFloat(document.getElementById('vektInn').value);
   if(!v||v<30||v>350){alert('Sjekk tallet 🙂');return;}

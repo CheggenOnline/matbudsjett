@@ -1,12 +1,20 @@
 {
-  "name": "Matbudsjett",
-  "short_name": "Matbudsjett",
+  "name": "Murph",
+  "short_name": "Murph",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#0e7c5b",
   "theme_color": "#0e7c5b",
   "icons": [
-    { "src": "mb-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "mb-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "mb-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "mb-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
