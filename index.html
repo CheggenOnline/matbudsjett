@@ -16,7 +16,8 @@
   :root{--grønn:#0e7c5b;--lysgrønn:#3f9e4f;--krem:#f6f3ea;--mørk:#1f2d27;--gul:#e8a13c;--lilla:#7c6bb0;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--krem);color:var(--mørk);}
-  #app{max-width:520px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom));}
+  body{position:fixed;inset:0;overflow:hidden;width:100%;}
+  #app{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;max-width:520px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom));}
   h1{font-size:22px;margin:4px 0 12px;}
   .card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);}
   .stor{font-size:40px;font-weight:800;line-height:1.1;}
@@ -332,7 +333,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.4</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.5</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -648,7 +649,7 @@ function renderChat(){
   h+=`<div style="display:flex;gap:8px;"><input id="chatInn" placeholder="Skriv til Murph…" onkeydown="if(event.key==='Enter')sendMurph()"><button class="primær" style="width:auto;margin-top:0;padding:10px 18px;" id="chatSend" onclick="sendMurph()">➤</button></div>`;
   if(ms.length)h+=`<button class="sekundær" onclick="if(confirm('Slette hele samtalen med Murph?')){S.murph.meldinger=[];lagre();render();}">Tøm samtalen</button>`;
   document.getElementById('app').innerHTML=h;
-  window.scrollTo(0,document.body.scrollHeight);
+  const appEl=document.getElementById('app');appEl.scrollTop=appEl.scrollHeight;
 }
 function murphSystem(){
   const p=S.profile,d=iDag();
@@ -777,7 +778,7 @@ function toast(t){
 
 // ===================== Dra-ned-for-å-oppdatere =====================
 let ptrY=null;
-document.addEventListener('touchstart',e=>{ptrY=(window.scrollY<=0&&document.getElementById('modal').style.display!=='flex')?e.touches[0].clientY:null;},{passive:true});
+document.addEventListener('touchstart',e=>{ptrY=(document.getElementById('app').scrollTop<=0&&document.getElementById('modal').style.display!=='flex')?e.touches[0].clientY:null;},{passive:true});
 document.addEventListener('touchmove',e=>{
   if(ptrY===null)return;
   if(e.touches[0].clientY-ptrY>90){
