@@ -11,10 +11,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Murph">
-<meta name="theme-color" content="#0e7c5b">
+<meta name="theme-color" content="#ffffff">
 <style>
   :root{--grønn:#0e7c5b;--lysgrønn:#3f9e4f;--krem:#f6f3ea;--mørk:#1f2d27;--gul:#e8a13c;--lilla:#7c6bb0;}
   *{box-sizing:border-box;}
+  html{background:#fff;}
   html,body{margin:0;padding:0;height:100%;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--krem);color:var(--mørk);}
   body{position:fixed;inset:0;overflow:hidden;width:100%;}
   #app{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;max-width:520px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom));}
@@ -37,7 +38,8 @@
   .rad .navn{flex:1;}
   .rad .kcal{font-weight:800;white-space:nowrap;}
   .rad button{border:none;background:#eee;border-radius:10px;padding:5px 10px;font-weight:700;cursor:pointer;color:#666;}
-  .tabs{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;box-shadow:0 -2px 10px rgba(0,0,0,.1);padding-bottom:env(safe-area-inset-bottom);z-index:50;}
+  .tabs{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;box-shadow:0 -2px 10px rgba(0,0,0,.1);padding-bottom:max(4px,calc(env(safe-area-inset-bottom) - 14px));z-index:50;}
+  .tabs::after{content:'';position:absolute;top:100%;left:0;right:0;height:220px;background:#fff;}
   .tabs button{flex:1;border:none;background:none;padding:12px 0 10px;font-size:12px;font-weight:700;color:#8a938d;cursor:pointer;}
   .tabs button.on{color:var(--grønn);}
   .tabs .ikon{display:block;font-size:22px;margin-bottom:2px;}
@@ -75,7 +77,9 @@ function last(){try{S=JSON.parse(localStorage.getItem(NØKKEL));}catch(e){S=null
   if(!S)S={profile:null,meals:{lite:400,middels:650,stort:900,snack:200,drikke:150},favs:[],log:{},weights:{},budget:null,budgetInfo:null,lastAdjust:null};
   if(!S.personal)S.personal={notat:'',anbefaling:'',plan:[],varsle:false};
   if(!S.murph)S.murph={meldinger:[]};
-  if(S.visKnapper===undefined)S.visKnapper=true;}
+  if(S.visKnapper===undefined)S.visKnapper=true;
+  if(!S.mål)S.mål={};
+  if(!S.måltyper)S.måltyper={midje:true,hofte:true,nakke:true,bryst:false,lår:false,arm:false};}
 function lagre(){try{localStorage.setItem(NØKKEL,JSON.stringify(S));}catch(e){}}
 const iDag=()=>new Date(Date.now()-3*3600*1000).toLocaleDateString('sv-SE'); // ny dag starter kl 03:00
 const nå=()=>new Date().toTimeString().slice(0,5);
@@ -208,28 +212,122 @@ function renderHjem(){
   document.getElementById('app').innerHTML=h;
 }
 
+const MÅLDEF=[
+  {id:'midje',navn:'Midje',hint:'Mål ved navlen, avslappet mage'},
+  {id:'hofte',navn:'Hofte',hint:'Rundt det bredeste punktet'},
+  {id:'nakke',navn:'Nakke',hint:'Rett under strupehodet'},
+  {id:'bryst',navn:'Bryst',hint:'Rundt det bredeste, avslappet'},
+  {id:'lår',navn:'Lår',hint:'Øverst, rundt det tykkeste'},
+  {id:'arm',navn:'Overarm',hint:'Midt på, avslappet arm'}];
+let utvViser='vekt';
+function aktiveMål(){return MÅLDEF.filter(m=>S.måltyper[m.id]);}
+function målSerie(id){const ds=Object.keys(S.mål).sort();return ds.filter(d=>S.mål[d]&&S.mål[d][id]!=null).map(d=>({d,v:S.mål[d][id]}));}
+function kfpForDato(d){
+  const m=S.mål[d];if(!m||!m.midje||!m.nakke||!S.profile)return null;
+  const h=S.profile.height;let v;
+  if(S.profile.sex==='m'){if(m.midje<=m.nakke)return null;v=495/(1.0324-0.19077*Math.log10(m.midje-m.nakke)+0.15456*Math.log10(h))-450;}
+  else{if(!m.hofte||m.midje+m.hofte<=m.nakke)return null;v=495/(1.29579-0.35004*Math.log10(m.midje+m.hofte-m.nakke)+0.221*Math.log10(h))-450;}
+  return (v>2&&v<70)?+v.toFixed(1):null;
+}
+function kfpSerie(){return Object.keys(S.mål).sort().map(d=>({d,v:kfpForDato(d)})).filter(x=>x.v!=null);}
+function sisteMål(id){const s2=målSerie(id);return s2.length?s2[s2.length-1].v:null;}
+function lagreMål(){
+  const d=iDag();const m=Object.assign({},S.mål[d]||{});let noe=false;
+  aktiveMål().forEach(x=>{
+    const el=document.getElementById('mål-'+x.id);if(!el)return;
+    const v=parseFloat(el.value);
+    if(v>10&&v<250){m[x.id]=v;noe=true;}
+  });
+  if(!noe){alert('Fyll inn minst ett mål 🙂');return;}
+  S.mål[d]=m;lagre();render();toast('Kroppsmål lagret! 📏');
+}
+function slettMålDag(d){if(confirm('Slette målingene for '+d+'?')){delete S.mål[d];lagre();render();}}
+function farge3(v,gulFra,oransjeFra){return v<gulFra?'#3f9e4f':v<oransjeFra?'#e8a13c':'#e07030';}
+function pilFor(serie){if(serie.length<2)return '';const diff=serie[serie.length-1].v-serie[serie.length-2].v;if(Math.abs(diff)<0.05)return ' →';return diff<0?' ↓':' ↑';}
+function nøkkeltall(){
+  if(!S.profile)return '';
+  const p=S.profile,v=sisteVekt(),hm=p.height/100;
+  const rader=[];
+  if(v){const bmi=+(v/(hm*hm)).toFixed(1);rader.push(['BMI',bmi,farge3(bmi,25,30),'']);}
+  const mi=sisteMål('midje'),ho=sisteMål('hofte');
+  if(mi&&ho){const whr=+(mi/ho).toFixed(2);rader.push(['Midje/hofte',whr,farge3(whr,p.sex==='m'?0.9:0.8,p.sex==='m'?1.0:0.85),pilFor(målSerie('midje'))]);}
+  if(mi){const whtr=+(mi/p.height).toFixed(2);rader.push(['Midje/høyde',whtr,farge3(whtr,0.5,0.6),'']);}
+  const kfp=kfpSerie();
+  if(kfp.length){const k=kfp[kfp.length-1].v;rader.push(['Fettprosent (est.)',k+' %',farge3(k,p.sex==='m'?20:30,p.sex==='m'?25:35),pilFor(kfp)]);}
+  if(!rader.length)return '';
+  return `<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">📊 Nøkkeltall</div>`
+    +rader.map(r=>`<div class="rad"><span class="navn">${r[0]}</span><span class="kcal" style="color:${r[2]};">${r[1]}${r[3]}</span></div>`).join('')
+    +`<div class="sub" style="margin-top:6px;">Grønn = fin sone · fettprosent er US Navy-estimat fra målene dine.</div></div>`;
+}
+function grafEnkel(serie,enhet){
+  const pts=serie.slice(-40);
+  if(pts.length===1)return `<div class="sub" style="margin-top:8px;">Første måling registrert (${pts[0].v} ${enhet}) – grafen kommer etter neste! 🌱</div>`;
+  const W=440,H=160,P=14;
+  let min=Math.min(...pts.map(p=>p.v)),max=Math.max(...pts.map(p=>p.v));
+  if(max-min<2){const m=(max+min)/2;min=m-1;max=m+1;}
+  const x=i=>P+(W-2*P)*(pts.length===1?0.5:i/(pts.length-1));
+  const y=v=>H-P-(H-2*P)*((v-min)/(max-min));
+  const linje=pts.map((p,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
+  const prikker=pts.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="4" fill="#0e7c5b"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;margin-top:10px;">
+    <text x="${P}" y="12" font-size="10" fill="#999">${max.toFixed(1)}</text>
+    <text x="${P}" y="${H-2}" font-size="10" fill="#999">${min.toFixed(1)}</text>
+    <path d="${linje}" fill="none" stroke="#0e7c5b" stroke-width="2.5" stroke-linecap="round"/>${prikker}</svg>
+    <div class="sub">${pts[0].d} → ${pts[pts.length-1].d} (${enhet})</div>`;
+}
 function renderVekt(){
   const tr=trendSerie();
   const idag=iDag();
   let h=`<h1>📈 Utvikling</h1>`;
+  // måletid-hint (ukentlig)
+  const målDatoer=Object.keys(S.mål).sort();
+  if(aktiveMål().length&&(!målDatoer.length||((new Date(idag)-new Date(målDatoer[målDatoer.length-1]))/86400000>=7))){
+    h+=`<div class="banner info">📏 Måletid? Ukentlig kroppsmåling er nok – det er trenden som teller. 🙂</div>`;
+  }
   h+=`<div class="card"><label>Dagens vekt (kg)</label>
     <div style="display:flex;gap:10px;"><input id="vektInn" type="number" step="0.1" inputmode="decimal" placeholder="${sisteVekt()||''}" value="${S.weights[idag]||''}">
     <button class="primær" style="width:auto;margin-top:0;padding:10px 20px;" onclick="lagreVekt()">Lagre</button></div>
     <div class="sub" style="margin-top:8px;">Vei deg gjerne om morgenen. Glemte dager gjør ingenting – trenden fikser det.</div></div>`;
-  if(tr.length>=2){
-    const først=tr[0],sist=tr[tr.length-1];
-    const diff=(sist.t-først.t).toFixed(1);
-    h+=`<div class="card"><div class="stor" style="font-size:30px;">${sist.t} kg</div>
-      <div class="sub">Trendvekt nå · ${diff<=0?'':'+'}${diff} kg siden start (${først.d})</div>
-      ${graf(tr)}</div>`;
-  } else if(tr.length===1){
-    h+=`<div class="card"><div class="stor" style="font-size:30px;">${tr[0].v} kg</div><div class="sub">Første veiing registrert – grafen kommer etter neste! 🌱</div></div>`;
-  } else {
-    h+=`<div class="card"><div class="sub">Ingen veiinger ennå. På ferie? Perfekt – bare logg maten du orker, så starter vi vekta når dere er hjemme. 🏖️</div></div>`;
+  if(aktiveMål().length){
+    h+=`<div class="card"><button class="sekundær" style="margin-top:0;" onclick="målÅpen=!målÅpen;render()">${window.målÅpen?'▴ Skjul kroppsmål':'▾ 📏 Registrer kroppsmål (cm)'}</button>`;
+    if(window.målÅpen){
+      const md=S.mål[idag]||{};
+      h+=`<div class="to-kol" style="margin-top:10px;">`+aktiveMål().map(x=>`<div><label>${x.navn} <span style="font-weight:400;color:#aaa;" title="${x.hint}">ℹ️</span></label><input id="mål-${x.id}" type="number" step="0.5" inputmode="decimal" placeholder="${sisteMål(x.id)||''}" value="${md[x.id]||''}"><div class="sub" style="font-size:11px;">${x.hint}</div></div>`).join('')+`</div>
+      <button class="primær" onclick="lagreMål()">Lagre mål</button>`;
+    }
+    h+=`</div>`;
   }
+  // graf med chips
+  const chips=[{id:'vekt',navn:'Vekt'}].concat(aktiveMål().filter(x=>målSerie(x.id).length).map(x=>({id:x.id,navn:x.navn})));
+  if(kfpSerie().length)chips.push({id:'kfp',navn:'Fett-%'});
+  if(!chips.some(c=>c.id===utvViser))utvViser='vekt';
+  h+=`<div class="card"><div style="margin-bottom:4px;">`+chips.map(c=>`<button class="sekundær" style="width:auto;display:inline-block;margin:0 6px 6px 0;padding:7px 12px;font-size:13px;${utvViser===c.id?'background:var(--grønn);color:#fff;':''}" onclick="utvViser='${c.id}';render()">${c.navn}</button>`).join('')+`</div>`;
+  if(utvViser==='vekt'){
+    if(tr.length>=2){
+      const først=tr[0],sist=tr[tr.length-1];
+      const diff=(sist.t-først.t).toFixed(1);
+      h+=`<div class="stor" style="font-size:30px;">${sist.t} kg</div>
+        <div class="sub">Trendvekt nå · ${diff<=0?'':'+'}${diff} kg siden start (${først.d})</div>${graf(tr)}`;
+    } else if(tr.length===1){
+      h+=`<div class="stor" style="font-size:30px;">${tr[0].v} kg</div><div class="sub">Første veiing registrert – grafen kommer etter neste! 🌱</div>`;
+    } else {
+      h+=`<div class="sub">Ingen veiinger ennå. Bare logg maten du orker, så starter vi vekta når du er klar. 🙂</div>`;
+    }
+  } else if(utvViser==='kfp'){
+    const kfp=kfpSerie();
+    h+=`<div class="stor" style="font-size:30px;">${kfp[kfp.length-1].v} %</div><div class="sub">Estimert kroppsfett (US Navy-metoden)</div>${grafEnkel(kfp,'%')}`;
+  } else {
+    const serie=målSerie(utvViser);
+    const def=MÅLDEF.find(x=>x.id===utvViser);
+    h+=`<div class="stor" style="font-size:30px;">${serie[serie.length-1].v} cm</div><div class="sub">${def.navn}</div>${grafEnkel(serie,'cm')}`;
+  }
+  h+=`</div>`;
+  h+=nøkkeltall();
   h+=inntaksGraf();
   const ds=Object.keys(S.weights).sort().reverse().slice(0,10);
   if(ds.length){h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Siste veiinger</div>`+ds.map(d=>`<div class="rad"><span class="navn">${d}</span><span class="kcal">${S.weights[d]} kg</span><button onclick="slettVekt('${d}')">✕</button></div>`).join('')+`</div>`;}
+  const md2=Object.keys(S.mål).sort().reverse().slice(0,6);
+  if(md2.length){h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Siste kroppsmål</div>`+md2.map(d=>`<div class="rad"><span class="navn">${d}</span><span class="sub">${MÅLDEF.filter(x=>S.mål[d][x.id]!=null).map(x=>x.navn+' '+S.mål[d][x.id]).join(' · ')}</span><button onclick="slettMålDag('${d}')">✕</button></div>`).join('')+`</div>`;}
   document.getElementById('app').innerHTML=h;
 }
 function inntaksGraf(){
@@ -293,6 +391,9 @@ function renderInnst(){
   const m=S.meals;
   h+=`<div class="card"><label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:0;"><input type="checkbox" style="width:auto;" ${S.visKnapper?'checked':''} onchange="S.visKnapper=this.checked;lagre();toast(this.checked?'Hurtigknapper på ✅':'Viser kun foto og beskriv 📷🤖')"> Vis hurtigknapper på Mat-siden</label>
     <div class="sub" style="margin-top:6px;">Av = kun «📷 Ta/velg bilde» og «🤖 Beskriv måltid» vises.</div></div>`;
+  h+=`<div class="card"><div class="sub" style="font-weight:700;">📏 Kroppsmål som trackes</div>
+    <div class="sub" style="margin:4px 0 6px;">Valgte mål dukker opp under Utvikling. Midje+nakke${S.profile&&S.profile.sex==='f'?'+hofte':''} trengs for fettprosent-estimatet.</div>
+    ${MÅLDEF.map(x=>`<label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:6px 0;"><input type="checkbox" style="width:auto;" ${S.måltyper[x.id]?'checked':''} onchange="S.måltyper['${x.id}']=this.checked;lagre();"> ${x.navn}</label>`).join('')}</div>`;
   h+=`<div class="card"><div class="sub" style="font-weight:700;">Kalorier per knapp (juster hvis anslagene bommer)</div>
     <div class="to-kol"><div><label>Lite måltid</label><input id="m-lite" type="number" value="${m.lite}"></div>
     <div><label>Middels måltid</label><input id="m-middels" type="number" value="${m.middels}"></div></div>
@@ -333,7 +434,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.5</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.6</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -659,9 +760,11 @@ function murphSystem(){
   const trend=tr.length>=2?('trendvekt '+tr[tr.length-1].t+' kg ('+(tr[tr.length-1].t-tr[0].t).toFixed(1)+' kg siden '+tr[0].d+')'):'ingen veiinger ennå';
   const plan=(S.personal.plan||[]).map(x=>x.t+' '+x.navn).join(', ')||'ingen';
   const logg=(S.log[d]||[]).map(x=>x.t+' '+x.name+' ('+x.kcal+')').join(', ')||'ingenting ennå';
+  const kroppsmål=MÅLDEF.map(x=>{const s2=målSerie(x.id);return s2.length?x.navn+' '+s2[s2.length-1].v+' cm'+(s2.length>1?' (forrige '+s2[s2.length-2].v+')':''):null;}).filter(Boolean).join(', ')||'ingen';
+  const kfp2=kfpSerie();
   return 'Du er Murph, brukerens personlige kostholds- og motivasjonsassistent i appen Matbudsjett. Snakk norsk. Vær varm, jordnær og kortfattet (ADHD-vennlig: få setninger, konkret neste steg). Aldri skam eller pekefinger – alltid støtte. Du er ikke lege; ved medisinske spørsmål, anbefal fastlegen.\n\n'
   +'MIN INFORMASJON (sammendrag om brukeren som DU vedlikeholder): '+(S.personal.notat||'(tomt ennå)')+'\n\n'
-  +'DATA NÅ: '+(p.sex==='m'?'Mann':'Kvinne')+', '+p.age+' år, '+p.height+' cm, siste vekt '+(sisteVekt()||p.weight)+' kg. Tempo: '+p.pace+' kg/uke. Dagsbudsjett: '+budsjett()+' kcal. Spist i dag: '+dagsTotal(d)+' kcal ('+logg+'). Vekt: '+trend+'. Inntak siste 7 dager (kcal): '+inntak+'. Spiseplan: '+plan+'. Anbefaling vist i appen: '+(S.personal.anbefaling||'(ingen)')+'\n\n'
+  +'DATA NÅ: '+(p.sex==='m'?'Mann':'Kvinne')+', '+p.age+' år, '+p.height+' cm, siste vekt '+(sisteVekt()||p.weight)+' kg. Tempo: '+p.pace+' kg/uke. Dagsbudsjett: '+budsjett()+' kcal. Spist i dag: '+dagsTotal(d)+' kcal ('+logg+'). Vekt: '+trend+'. Inntak siste 7 dager (kcal): '+inntak+'. Kroppsmål: '+kroppsmål+(kfp2.length?'. Estimert fettprosent: '+kfp2[kfp2.length-1].v+' %':'')+'. Spiseplan: '+plan+'. Anbefaling vist i appen: '+(S.personal.anbefaling||'(ingen)')+'\n\n'
   +'DU KAN GJENNOMFØRE ENDRINGER I APPEN: Når dere blir enige om en endring, eller du lærer noe varig om brukeren, avslutt svaret med en egen siste linje: @@ENDRING@@{...} der {...} er gyldig JSON med ett eller flere felt: "minInfo" (skriv HELE det oppdaterte sammendraget om brukeren på nytt), "plan" (full spiseplan som [{"t":"HH:MM","navn":"..."}]), "pace" (0.25 eller 0.5 kg/uke), "varsle" (true/false), "anbefaling" (kort råd som vises i appen). Forklar alltid i selve svaret hva du endrer og hvorfor. Ingen @@ENDRING@@-linje ellers.';
 }
 function brukEndringer(txt){
