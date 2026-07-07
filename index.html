@@ -24,9 +24,9 @@
   .bar{height:16px;border-radius:8px;background:#e7e3d8;overflow:hidden;margin:10px 0 4px;}
   .bar>div{height:100%;border-radius:8px;background:var(--lysgrønn);transition:width .4s,background .4s;}
   .knapper{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .k{border:none;border-radius:16px;padding:18px 10px;font-size:16px;font-weight:800;cursor:pointer;background:var(--grønn);color:#fff;box-shadow:0 3px 0 rgba(0,0,0,.15);}
+  .k{border:none;border-radius:13px;padding:10px 8px;font-size:14px;font-weight:800;cursor:pointer;background:var(--grønn);color:#fff;box-shadow:0 2px 0 rgba(0,0,0,.15);}
   .k:active{transform:translateY(2px);box-shadow:none;}
-  .k small{display:block;font-weight:600;font-size:12px;opacity:.85;margin-top:2px;}
+  .k small{display:block;font-weight:600;font-size:11px;opacity:.85;margin-top:1px;}
   .k.snack{background:var(--gul);}
   .k.drikke{background:#4c8fbe;}
   .k.fav{background:var(--lilla);}
@@ -135,6 +135,8 @@ function kanskjeJuster(){
 // ===================== Visninger =====================
 let aktivFane='hjem';
 let avansertÅpen=false;
+let dagensÅpen=false;
+let statusRådVenter=false;
 function vis(f){aktivFane=f;
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
   document.getElementById('tab-'+f).classList.add('on');
@@ -163,7 +165,8 @@ function renderHjem(){
   if(!Object.keys(S.weights).length){h+=`<div class="banner info">🏖️ Ingen veiinger ennå – null stress. Budsjettet er formelbasert, og den smarte justeringen starter av seg selv når du begynner å veie deg.</div>`;}
   h+=`<div class="card"><div>${status}</div>
     <div class="bar"><div style="width:${pst}%;background:${farge};"></div></div>
-    <div class="sub">Budsjett: ${b} kcal · Logget: ${brukt} kcal${S.budgetInfo&&S.budgetInfo.source==='auto'?' · 📊 auto-justert':''}</div></div>`;
+    <div class="sub">Budsjett: ${b} kcal · Logget: ${brukt} kcal${S.budgetInfo&&S.budgetInfo.source==='auto'?' · 📊 auto-justert':''}</div>
+    ${S.statusRåd&&S.statusRåd.n&&S.statusRåd.n.startsWith(iDag())?`<div class="sub" style="margin-top:8px;color:var(--grønn);font-weight:600;">🤖 ${esc(S.statusRåd.t)}</div>`:''}</div>`;
   const m=S.meals;
   h+=`<div class="card"><div class="sub" style="margin-bottom:8px;font-weight:700;">Trykk én gang – ferdig logget:</div>
     <div class="knapper">
@@ -177,10 +180,23 @@ function renderHjem(){
     <button class="k egen" onclick="nyEgen()">＋ Egen…</button>
     ${S.favs.map((f,i)=>`<button class="k fav" onclick="loggMat('${esc(f.name).replace(/'/g,"\\'")}',${f.kcal})">⭐ ${esc(f.name)}<small>${f.kcal} kcal</small></button>`).join('')}
     </div></div>`;
+  if(S.personal&&S.personal.plan&&S.personal.plan.length){
+    const nm=minutter(nå());
+    let nesteFunnet=false;
+    h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">🗓️ Måltidsplan</div>`;
+    h+=S.personal.plan.map(x=>{
+      const passert=minutter(x.t)+45<nm;
+      const neste=!passert&&!nesteFunnet&&(nesteFunnet=true);
+      return `<div class="rad" style="${passert?'opacity:.4;':''}"><span class="sub" style="min-width:44px;${neste?'font-weight:800;color:var(--grønn);':''}">${x.t}</span><span class="navn" style="${neste?'font-weight:800;':''}">${neste?'👉 ':''}${esc(x.navn)}</span></div>`;
+    }).join('');
+    h+=`</div>`;
+  }
   const dagens=S.log[iDag()]||[];
-  h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">I dag (${dagens.length} ${dagens.length===1?'post':'poster'})</div>`;
-  h+=dagens.length?dagens.map((x,i)=>`<div class="rad"><span class="sub">${x.t}</span><span class="navn">${esc(x.name)}</span><span class="kcal">${x.kcal}</span><button onclick="slettPost(${i})">✕</button></div>`).join('')
+  h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">I dag (${dagens.length} ${dagens.length===1?'post':'poster'} · ${dagsTotal(iDag())} kcal)</div>`;
+  const fra=dagensÅpen?0:Math.max(0,dagens.length-3);
+  h+=dagens.length?dagens.map((x,i)=>i<fra?'':`<div class="rad"><span class="sub">${x.t}</span><span class="navn">${esc(x.name)}</span><span class="kcal">${x.kcal}</span><button onclick="slettPost(${i})">✕</button></div>`).join('')
     :`<div class="sub" style="padding:8px 0;">Ingenting logget ennå i dag. Ett trykk, så er du i gang! 👆</div>`;
+  if(dagens.length>3)h+=`<button class="sekundær" style="margin-top:8px;" onclick="dagensÅpen=!dagensÅpen;render()">${dagensÅpen?'▴ Vis færre':'▾ Vis alle ('+dagens.length+')'}</button>`;
   h+=`</div>`;
   document.getElementById('app').innerHTML=h;
 }
@@ -276,6 +292,12 @@ function renderInnst(){
     <label>Drikke</label><input id="m-drikke" type="number" value="${m.drikke}">
     <button class="sekundær" onclick="lagreMåltider()">Lagre knapper</button></div>`;
   if(S.favs.length){h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Favoritter</div>`+S.favs.map((f,i)=>`<div class="rad"><span class="navn">⭐ ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join('')+`</div>`;}
+  if(!aiNøkkel()){
+    h+=`<div class="card"><div class="sub" style="font-weight:700;">🔑 Aktiver AI-funksjoner</div>
+      <div class="sub" style="margin:6px 0;">Skriv inn innloggingskoden, så aktiveres smart logging, foto, Murph og råd – uten å hanskes med API-nøkler.</div>
+      <input id="ai-kode" type="password" inputmode="numeric" placeholder="Kode" autocomplete="off">
+      <button class="primær" onclick="aktiverMedKode()">Aktiver</button></div>`;
+  }
   const P=S.personal;
   h+=`<div class="card"><div class="sub" style="font-weight:700;">🩺 Min informasjon & spiseplan</div>
     <div class="sub" style="margin:6px 0;">Alt appen (og Murph 💬) bør vite om deg: medisiner, matlyst, vaner. Murph leser dette, og oppdaterer det selv når han lærer noe nytt om deg i chatten. Lagres kun på denne telefonen.</div>
@@ -302,7 +324,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.2</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.3</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -337,15 +359,81 @@ function loggMat(navn,kcal){
   sisteLoggIdx=S.log[d].length-1;sisteLoggAntall=1;
   lagre();render();
   toast(heia[Math.floor(Math.random()*heia.length)]+' '+navn+' · '+kcal+' kcal');
+  sjekkOversprekk();oppdaterStatusRåd(true);
 }
 function angre(){
   const d=iDag();
-  if(sisteLoggIdx!=null&&S.log[d]&&S.log[d][sisteLoggIdx]){S.log[d].splice(sisteLoggIdx,sisteLoggAntall);sisteLoggIdx=null;sisteLoggAntall=1;lagre();render();}
+  if(sisteLoggIdx!=null&&S.log[d]&&S.log[d][sisteLoggIdx]){S.log[d].splice(sisteLoggIdx,sisteLoggAntall);sisteLoggIdx=null;sisteLoggAntall=1;lagre();render();oppdaterStatusRåd(true);}
   document.getElementById('toast').style.display='none';
 }
 
 // ===================== Claude AI-logging =====================
 const AINØKKEL='mb_claude_key';
+const KODEBLOB='joMqcsJAnD/ura5t4CzXPN90vqIVWW6kmKRMVwjlyFi5hQo4K4Vn7JUI6wzOHfWnBotvvnzS/xkvdImqr5uyIog80UwKO5sDoB/RzbSZnoGmnoB+Ey3/rdv7ktrgj+1Mtfs7TeaabfMijd+ckZq8ttrOMaNQvQNnUHyZlZv3Px1z4N/4r53htLBJc4NmQUpUag1nGAbMd0d2XIzjcEdqf4U=';
+async function aktiverMedKode(){
+  const kode=document.getElementById('ai-kode').value.trim();
+  if(!kode){alert('Skriv inn koden 🙂');return;}
+  try{
+    const rå=Uint8Array.from(atob(KODEBLOB),c=>c.charCodeAt(0));
+    const salt=rå.slice(0,16),iv=rå.slice(16,28),data=rå.slice(28);
+    const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(kode),'PBKDF2',false,['deriveKey']);
+    const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+    const klar=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},k,data)));
+    localStorage.setItem(AINØKKEL,klar.ai);
+    toast('AI-funksjoner aktivert! 🤖');render();oppdaterStatusRåd(true);
+  }catch(e){alert('Feil kode 🙈');}
+}
+async function oppdaterStatusRåd(tving){
+  if(!aiNøkkel()||!S.profile)return;
+  const d=iDag(),nøkkelNå=d+'|'+dagsTotal(d);
+  if(!tving&&S.statusRåd&&S.statusRåd.n===nøkkelNå&&Date.now()-S.statusRåd.ts<90*60*1000)return;
+  if(statusRådVenter)return;statusRådVenter=true;
+  try{
+    const logg=(S.log[d]||[]).map(x=>x.t+' '+x.name+' ('+x.kcal+')').join(', ')||'ingenting';
+    const plan=(S.personal.plan||[]).map(x=>x.t+' '+x.navn).join(', ')||'ingen';
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{
+      'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
+      'anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:150,
+        system:'Du er Murph, en varm norsk kostholdscoach i en app. Gi ÉN kort statuslinje (maks 22 ord): hvordan brukeren ligger an akkurat nå + konkret forslag til neste måltid med ca. kcal. Ta hensyn til klokkeslett, gjenstående budsjett, spiseplanen og brukerens info. Aldri skam. Svar KUN med setningen, ingen anførselstegn.',
+        messages:[{role:'user',content:'Klokka '+nå()+'. Budsjett '+budsjett()+' kcal, spist '+dagsTotal(d)+' ('+logg+'). Spiseplan: '+plan+'. Om meg: '+(S.personal.notat||'')}]})});
+    if(!res.ok)throw 0;
+    const data=await res.json();
+    const t=((data.content&&data.content[0]&&data.content[0].text)||'').trim().slice(0,200);
+    if(t){S.statusRåd={t,n:nøkkelNå,ts:Date.now()};lagre();if(aktivFane==='hjem')render();}
+  }catch(e){}
+  statusRådVenter=false;
+}
+function sjekkOversprekk(){
+  if(!aiNøkkel()||!S.profile)return;
+  const d=iDag(),b=budsjett();
+  if(dagsTotal(d)>b&&S.spurtRåd!==d){
+    S.spurtRåd=d;lagre();
+    visModal('<div style="font-weight:800;font-size:18px;margin-bottom:6px;">Du er over dagsbudsjettet 💜</div>'
+      +'<div class="sub" style="font-size:14px;margin-bottom:8px;">Helt ok – én dag velter ingenting. Vil du ha råd for resten av dagen, og hva du kan justere i morgen for å lande fint?</div>'
+      +'<button class="primær" onclick="hentSprekkRåd()">Ja, gi meg råd 🤖</button>'
+      +'<button class="sekundær" onclick="lukkModal()">Nei takk</button>');
+  }
+}
+async function hentSprekkRåd(){
+  visModal('<div style="text-align:center;padding:26px 10px;"><div style="font-size:38px;">🤖</div><div style="font-weight:700;margin-top:8px;">Murph tenker…</div></div>');
+  try{
+    const d=iDag();
+    const logg=(S.log[d]||[]).map(x=>x.t+' '+x.name+' ('+x.kcal+')').join(', ');
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{
+      'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
+      'anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,
+        system:'Du er Murph, varm norsk kostholdscoach. Brukeren har gått over dagsbudsjettet. Svar på norsk i to korte deler med overskriftene «Resten av dagen:» og «I morgen:» – konkrete, snille råd basert på hva som faktisk ble spist i dag (maks 90 ord totalt). Aldri skam.',
+        messages:[{role:'user',content:'Klokka '+nå()+'. Budsjett '+budsjett()+', spist '+dagsTotal(d)+' kcal i dag: '+logg+'. Spiseplan: '+((S.personal.plan||[]).map(x=>x.t+' '+x.navn).join(', ')||'ingen')+'. Om meg: '+(S.personal.notat||'')}]})});
+    if(!res.ok)throw new Error('API-feil ('+res.status+')');
+    const data=await res.json();
+    const t=((data.content&&data.content[0]&&data.content[0].text)||'').trim();
+    visModal('<div style="font-weight:800;font-size:18px;margin-bottom:8px;">🤖 Murphs råd</div><div style="font-size:15px;white-space:pre-wrap;">'+esc(t)+'</div><button class="primær" onclick="lukkModal()">Takk! 💪</button>');
+  }catch(e){
+    visModal('<div style="font-weight:800;">⚠️ '+esc(e.message||'Noe gikk galt')+'</div><button class="sekundær" onclick="lukkModal()">Lukk</button>');
+  }
+}
 function aiNøkkel(){try{return localStorage.getItem(AINØKKEL)||'';}catch(e){return '';}}
 function lagreAiNøkkel(){
   const v=document.getElementById('ai-key').value.trim();
@@ -389,6 +477,7 @@ async function aiLogg(){
     lukkModal();lagre();render();
     const sum=poster.reduce((s,p)=>s+p.kcal,0);
     toast('🤖 Logget '+poster.length+(poster.length>1?' poster':' post')+' · '+sum+' kcal');
+    sjekkOversprekk();oppdaterStatusRåd(true);
   }catch(e){
     if(knapp){knapp.disabled=false;knapp.textContent='✨ Beregn og logg';}
     toast('⚠️ '+((e&&e.message)||'Noe gikk galt – prøv igjen'));
@@ -453,6 +542,7 @@ function registrerFoto(){
   const sum=fotoPoster.reduce((s,p)=>s+p.kcal,0);
   fotoPoster=null;lukkModal();lagre();vis('hjem');
   toast('📷 Logget '+sum+' kcal fra bildet');
+  sjekkOversprekk();oppdaterStatusRåd(true);
 }
 
 // ===================== Personlige hensyn, spiseplan & smell-varsler =====================
@@ -625,14 +715,14 @@ async function sendMurph(){
     const txt=(data.content&&data.content[0]&&data.content[0].text)||'';
     const e=brukEndringer(txt);
     S.murph.meldinger.push({r:'m',t:e.ren});
-    if(e.oppsummering)S.murph.meldinger.push({r:'s',t:'✅ Murph oppdaterte: '+e.oppsummering});
+    if(e.oppsummering){S.murph.meldinger.push({r:'s',t:'✅ Murph oppdaterte: '+e.oppsummering});oppdaterStatusRåd(true);}
   }catch(err){
     S.murph.meldinger.push({r:'s',t:'⚠️ '+((err&&err.message)||'Noe gikk galt – prøv igjen')});
   }
   murphOpptatt=false;lagre();renderChat();
 }
 
-function slettPost(i){const d=iDag();S.log[d].splice(i,1);lagre();render();}
+function slettPost(i){const d=iDag();S.log[d].splice(i,1);lagre();render();oppdaterStatusRåd(true);}
 function nyEgen(){
   const navn=prompt('Hva spiste du?');if(!navn)return;
   const kcal=parseInt(prompt('Omtrent hvor mange kalorier? (gjett – omtrent er godt nok!)'),10);if(!kcal)return;
@@ -694,7 +784,9 @@ document.addEventListener('touchend',()=>{ptrY=null;},{passive:true});
 // ===================== Oppstart =====================
 last();
 render();
+oppdaterStatusRåd(false);
 setInterval(()=>{if(aktivFane==='hjem')render();},60000);
+setInterval(()=>oppdaterStatusRåd(false),1800000);
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible')return;
   if(performance.now()>6*3600*1000){location.reload();return;}
