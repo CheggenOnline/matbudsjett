@@ -438,6 +438,56 @@ async function lagMatplan(){
     visModal('<div style="font-weight:800;">⚠️ '+esc((e&&e.message)||'Noe gikk galt')+'</div><button class="sekundær" onclick="lukkModal()">Lukk</button>');
   }
 }
+function aiNøkkel(){try{return localStorage.getItem(AINØKKEL)||'';}catch(e){return '';}}
+function lagreAiNøkkel(){
+  const v=document.getElementById('ai-key').value.trim();
+  if(!v){alert('Lim inn nøkkelen først 🙂');return;}
+  localStorage.setItem(AINØKKEL,v);toast('AI-logging aktivert! 🤖');render();
+}
+function fjernAiNøkkel(){localStorage.removeItem(AINØKKEL);toast('Nøkkel fjernet');render();}
+function åpneAiModal(){
+  visModal('<div style="font-weight:800;font-size:18px;margin-bottom:8px;">🤖 Hva har du spist?</div>'
+    +'<textarea id="aiTekst" placeholder="F.eks: 2 brødskiver med brunost og et glass melk" style="width:100%;font-size:16px;padding:10px 12px;border:1px solid #ddd;border-radius:12px;min-height:80px;font-family:inherit;box-sizing:border-box;"></textarea>'
+    +'<button class="primær" id="aiKnapp" onclick="aiLogg()">✨ Beregn og logg</button>'
+    +'<button class="sekundær" onclick="lukkModal()">Avbryt</button>');
+  setTimeout(()=>{const t=document.getElementById('aiTekst');if(t)t.focus();},100);
+}
+async function aiLogg(){
+  const inp=document.getElementById('aiTekst'),knapp=document.getElementById('aiKnapp');
+  const tekst=(inp.value||'').trim();
+  if(!tekst){inp.focus();return;}
+  knapp.disabled=true;knapp.textContent='🤔 Regner…';
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{
+      'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
+      'anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,
+        system:'Du er kaloriberegner i en norsk kostholdsapp. Brukeren beskriver hva han har spist/drukket. Estimer kalorier per post med vanlige norske porsjonsstørrelser (brødskive m/pålegg ~120-180 kcal, glass melk ~100, middagsporsjon 500-800 osv). Er mengden uklar, anta en normal porsjon. Svar KUN med gyldig JSON: {"poster":[{"navn":"kort navn","kcal":heltall}]} – ingen annen tekst.',
+        messages:[{role:'user',content:tekst}]})});
+    if(res.status===401||res.status===403)throw new Error('Ugyldig API-nøkkel – sjekk Innstillinger');
+    if(res.status===429)throw new Error('For mange forespørsler – vent litt og prøv igjen');
+    if(!res.ok)throw new Error('API-feil ('+res.status+')');
+    const data=await res.json();
+    let txt=(data.content&&data.content[0]&&data.content[0].text)||'';
+    txt=txt.replace(/```json|```/g,'').trim();
+    const m=txt.match(/\{[\s\S]*\}/);
+    if(!m)throw new Error('Uventet svar – prøv igjen');
+    const poster=(JSON.parse(m[0]).poster||[]).map(p=>({navn:String(p.navn||'').slice(0,60),kcal:Math.round(+p.kcal)})).filter(p=>p.navn&&p.kcal>0);
+    if(!poster.length)throw new Error('Fant ingen matposter – prøv å beskrive litt mer');
+    const d=iDag();if(!S.log[d])S.log[d]=[];
+    const start=S.log[d].length;
+    for(const p of poster)S.log[d].push({t:nå(),name:p.navn,kcal:p.kcal});
+    sisteLoggIdx=start;sisteLoggAntall=poster.length;
+    lukkModal();lagre();render();
+    const sum=poster.reduce((s,p)=>s+p.kcal,0);
+    toast('🤖 Logget '+poster.length+(poster.length>1?' poster':' post')+' · '+sum+' kcal');
+    oppdaterStatusRåd(true);
+  }catch(e){
+    if(knapp){knapp.disabled=false;knapp.textContent='✨ Beregn og logg';}
+    toast('⚠️ '+((e&&e.message)||'Noe gikk galt – prøv igjen'));
+  }
+}
+
 // ===================== Foto-analyse =====================
 function kameraKlikk(){
   if(!aiNøkkel()){toast('Legg inn API-nøkkel i Innstillinger først 🤖');vis('innst');return;}
