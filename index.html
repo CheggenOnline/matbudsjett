@@ -288,8 +288,10 @@ function renderInnst(){
     <div style="display:flex;gap:8px;margin-top:8px;"><input id="plan-t" type="time" style="width:140px;"><input id="plan-n" placeholder="F.eks. Lunsj"><button class="sekundær" style="width:auto;margin-top:0;padding:10px 14px;" onclick="leggTilPlan()">＋</button></div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:15px;"><input type="checkbox" style="width:auto;" ${P.varsle?'checked':''} onchange="toggleVarsle(this)"> Minn meg på måltider / varsle før «smell»</label>
     <div class="sub" style="margin-top:4px;">Du får banner øverst på I dag-siden, og systemvarsel der nettleseren støtter det (appen må være åpen).</div></div>`;
+  h+=`<button class="sekundær" onclick="avansertÅpen=!avansertÅpen;render()">${avansertÅpen?'▴ Skjul avansert':'▾ Avansert'}</button>`;
+  if(avansertÅpen){
   const nk=aiNøkkel();
-  h+=`<div class="card"><div class="sub" style="font-weight:700;">🤖 Claude AI-logging (valgfritt)</div>
+  h+=`<div class="card" style="margin-top:12px;"><div class="sub" style="font-weight:700;">🤖 Claude AI-logging (valgfritt)</div>
     <div class="sub" style="margin:6px 0;">Med en egen API-nøkkel fra Anthropic får du et fritekstfelt på I dag-siden: skriv hva du spiste, så beregner Claude kaloriene. Nøkkelen lagres kun på denne enheten og blir ikke med i backup-filen.</div>
     <label>API-nøkkel${nk?' (lagret ✅)':''}</label><input id="ai-key" type="password" placeholder="${nk?'••••••••':'sk-ant-…'}" autocomplete="off">
     <button class="sekundær" onclick="lagreAiNøkkel()">${nk?'Oppdater nøkkel':'Lagre nøkkel'}</button>
@@ -298,8 +300,9 @@ function renderInnst(){
     <button class="sekundær" onclick="document.getElementById('importFil').click()">📂 Importer backup</button>
     <input id="importFil" type="file" accept=".json" style="display:none" onchange="importer(this)">
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
-    <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div>
-    <div class="sub" style="margin-top:6px;color:#bbb;">Versjon 2026-07-07.1</div></div>`;
+    <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
+  }
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.2</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -582,6 +585,16 @@ function brukEndringer(txt){
       if(obj.pace===0.25||obj.pace===0.5){S.profile.pace=obj.pace;deler.push('tempo → '+String(obj.pace).replace('.',',')+' kg/uke');}
       if(typeof obj.varsle==='boolean'){S.personal.varsle=obj.varsle;deler.push('varsler '+(obj.varsle?'på':'av'));}
       if(typeof obj.anbefaling==='string'&&obj.anbefaling.trim()){S.personal.anbefaling=obj.anbefaling.trim().slice(0,500);deler.push('anbefalingen');}
+      if(Array.isArray(obj.logg)){
+        const poster=obj.logg.map(x=>({navn:String(x.navn||'').slice(0,60),kcal:Math.round(+x.kcal)})).filter(x=>x.navn&&x.kcal>0);
+        if(poster.length){
+          const d=iDag();if(!S.log[d])S.log[d]=[];
+          const start=S.log[d].length;
+          for(const x of poster)S.log[d].push({t:nå(),name:x.navn,kcal:x.kcal});
+          sisteLoggIdx=start;sisteLoggAntall=poster.length;
+          deler.push('loggførte '+poster.length+(poster.length>1?' måltider':' måltid')+' ('+poster.reduce((a,x)=>a+x.kcal,0)+' kcal)');
+        }
+      }
       lagre();
     }
   }catch(e){}
