@@ -141,6 +141,7 @@ function kanskjeJuster(){
 // ===================== Visninger =====================
 let aktivFane='hjem';
 let avansertÅpen=false;
+window.målÅpen=false;
 let dagensÅpen=false;
 let statusRådVenter=false;
 function vis(f){aktivFane=f;
@@ -434,7 +435,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.6</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.7</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
