@@ -18,6 +18,7 @@
   html{background:#fff;}
   html,body{margin:0;padding:0;height:100%;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--krem);color:var(--mørk);}
   body{position:fixed;inset:0;overflow:hidden;width:100%;}
+  @supports(height:100dvh){body{height:100dvh;}}
   #app{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;max-width:520px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom));}
   h1{font-size:22px;margin:4px 0 12px;}
   .card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);}
@@ -38,7 +39,7 @@
   .rad .navn{flex:1;}
   .rad .kcal{font-weight:800;white-space:nowrap;}
   .rad button{border:none;background:#eee;border-radius:10px;padding:5px 10px;font-weight:700;cursor:pointer;color:#666;}
-  .tabs{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;box-shadow:0 -2px 10px rgba(0,0,0,.1);padding-bottom:max(4px,calc(env(safe-area-inset-bottom) - 14px));z-index:50;}
+  .tabs{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;box-shadow:0 -2px 10px rgba(0,0,0,.1);padding-bottom:max(2px,calc(env(safe-area-inset-bottom) - 22px));z-index:50;}
   .tabs::after{content:'';position:absolute;top:100%;left:0;right:0;height:220px;background:#fff;}
   .tabs button{flex:1;border:none;background:none;padding:12px 0 10px;font-size:12px;font-weight:700;color:#8a938d;cursor:pointer;}
   .tabs button.on{color:var(--grønn);}
@@ -145,6 +146,7 @@ window.målÅpen=false;
 let dagensÅpen=false;
 let statusRådVenter=false;
 function vis(f){aktivFane=f;
+  try{sessionStorage.setItem('mb_fane',f);}catch(e){}
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
   document.getElementById('tab-'+f).classList.add('on');
   render();
@@ -242,6 +244,22 @@ function lagreMål(){
   if(!noe){alert('Fyll inn minst ett mål 🙂');return;}
   S.mål[d]=m;lagre();render();toast('Kroppsmål lagret! 📏');
 }
+function oppdaterMåling(){
+  let noe=false;
+  const vf=document.getElementById('vektInn');
+  const v=parseFloat(vf.value);
+  if(vf.value.trim()){
+    if(!v||v<30||v>350){alert('Sjekk vekta 🙂');return;}
+    S.weights[iDag()]=v;noe=true;
+  }
+  if(window.målÅpen){
+    const d=iDag();const m=Object.assign({},S.mål[d]||{});let målNoe=false;
+    aktiveMål().forEach(x=>{const el=document.getElementById('mål-'+x.id);if(!el)return;const mv=parseFloat(el.value);if(mv>10&&mv<250){m[x.id]=mv;målNoe=true;}});
+    if(målNoe){S.mål[d]=m;noe=true;}
+  }
+  if(!noe){alert('Fyll inn vekt eller mål først 🙂');return;}
+  lagre();render();toast('Oppdatert! 📏');
+}
 function slettMålDag(d){if(confirm('Slette målingene for '+d+'?')){delete S.mål[d];lagre();render();}}
 function farge3(v,gulFra,oransjeFra){return v<gulFra?'#3f9e4f':v<oransjeFra?'#e8a13c':'#e07030';}
 function pilFor(serie){if(serie.length<2)return '';const diff=serie[serie.length-1].v-serie[serie.length-2].v;if(Math.abs(diff)<0.05)return ' →';return diff<0?' ↓':' ↑';}
@@ -285,19 +303,16 @@ function renderVekt(){
   if(aktiveMål().length&&(!målDatoer.length||((new Date(idag)-new Date(målDatoer[målDatoer.length-1]))/86400000>=7))){
     h+=`<div class="banner info">📏 Måletid? Ukentlig kroppsmåling er nok – det er trenden som teller. 🙂</div>`;
   }
-  h+=`<div class="card"><label>Dagens vekt (kg)</label>
-    <div style="display:flex;gap:10px;"><input id="vektInn" type="number" step="0.1" inputmode="decimal" placeholder="${sisteVekt()||''}" value="${S.weights[idag]||''}">
-    <button class="primær" style="width:auto;margin-top:0;padding:10px 20px;" onclick="lagreVekt()">Lagre</button></div>
-    <div class="sub" style="margin-top:8px;">Vei deg gjerne om morgenen. Glemte dager gjør ingenting – trenden fikser det.</div></div>`;
-  if(aktiveMål().length){
-    h+=`<div class="card"><button class="sekundær" style="margin-top:0;" onclick="målÅpen=!målÅpen;render()">${window.målÅpen?'▴ Skjul kroppsmål':'▾ 📏 Registrer kroppsmål (cm)'}</button>`;
-    if(window.målÅpen){
-      const md=S.mål[idag]||{};
-      h+=`<div class="to-kol" style="margin-top:10px;">`+aktiveMål().map(x=>`<div><label>${x.navn} <span style="font-weight:400;color:#aaa;" title="${x.hint}">ℹ️</span></label><input id="mål-${x.id}" type="number" step="0.5" inputmode="decimal" placeholder="${sisteMål(x.id)||''}" value="${md[x.id]||''}"><div class="sub" style="font-size:11px;">${x.hint}</div></div>`).join('')+`</div>
-      <button class="primær" onclick="lagreMål()">Lagre mål</button>`;
-    }
-    h+=`</div>`;
+  h+=`<div class="card"><label>Vekt (kg)</label>
+    <input id="vektInn" type="number" step="0.1" inputmode="decimal" placeholder="${sisteVekt()||''}" value="${S.weights[idag]||''}">`;
+  if(window.målÅpen&&aktiveMål().length){
+    const md=S.mål[idag]||{};
+    h+=`<div class="to-kol" style="margin-top:10px;">`+aktiveMål().map(x=>`<div><label>${x.navn} (cm)</label><input id="mål-${x.id}" type="number" step="0.5" inputmode="decimal" placeholder="${sisteMål(x.id)||''}" value="${md[x.id]||''}"><div class="sub" style="font-size:11px;">${x.hint}</div></div>`).join('')+`</div>`;
   }
+  h+=`<div style="display:flex;gap:10px;margin-top:10px;">
+    ${aktiveMål().length?`<button class="sekundær" style="margin-top:0;flex:1;" onclick="window.målÅpen=!window.målÅpen;render()">${window.målÅpen?'▴ Færre mål':'▾ Flere mål'}</button>`:''}
+    <button class="primær" style="margin-top:0;flex:1;" onclick="oppdaterMåling()">Oppdater</button></div>
+    <div class="sub" style="margin-top:8px;">Vekt gjerne daglig, kroppsmål ukentlig. Fyll det du har og trykk Oppdater.</div></div>`;
   // graf med chips
   const chips=[{id:'vekt',navn:'Vekt'}].concat(aktiveMål().filter(x=>målSerie(x.id).length).map(x=>({id:x.id,navn:x.navn})));
   if(kfpSerie().length)chips.push({id:'kfp',navn:'Fett-%'});
@@ -390,22 +405,25 @@ function renderInnst(){
     <button class="primær" onclick="lagreProfil()">Lagre profil</button>
     <div class="sub" style="margin-top:8px;">Budsjettet regnes ut fra dette – og finjusterer seg selv ukentlig ut fra faktisk inntak og vekttrend.</div></div>`;
   const m=S.meals;
-  h+=`<div class="card"><label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:0;"><input type="checkbox" style="width:auto;" ${S.visKnapper?'checked':''} onchange="S.visKnapper=this.checked;lagre();toast(this.checked?'Hurtigknapper på ✅':'Viser kun foto og beskriv 📷🤖')"> Vis hurtigknapper på Mat-siden</label>
-    <div class="sub" style="margin-top:6px;">Av = kun «📷 Ta/velg bilde» og «🤖 Beskriv måltid» vises.</div></div>`;
-  h+=`<div class="card"><div class="sub" style="font-weight:700;">📏 Kroppsmål som trackes</div>
-    <div class="sub" style="margin:4px 0 6px;">Valgte mål dukker opp under Utvikling. Midje+nakke${S.profile&&S.profile.sex==='f'?'+hofte':''} trengs for fettprosent-estimatet.</div>
-    ${MÅLDEF.map(x=>`<label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:6px 0;"><input type="checkbox" style="width:auto;" ${S.måltyper[x.id]?'checked':''} onchange="S.måltyper['${x.id}']=this.checked;lagre();"> ${x.navn}</label>`).join('')}</div>`;
-  h+=`<div class="card"><div class="sub" style="font-weight:700;">Kalorier per knapp (juster hvis anslagene bommer)</div>
+  h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:6px;">Loggeknapper</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:0;"><input type="checkbox" style="width:auto;" ${S.visKnapper?'checked':''} onchange="S.visKnapper=this.checked;lagre();toast(this.checked?'Hurtigknapper på ✅':'Viser kun foto og beskriv 📷🤖')"> Vis hurtigknapper på Mat-siden</label>
+    <div class="sub" style="margin-top:6px;">Av = kun «📷 Ta/velg bilde» og «🤖 Beskriv måltid» vises.</div>
+    <div class="sub" style="font-weight:700;margin-top:12px;">Kalorier per knapp</div>
     <div class="to-kol"><div><label>Lite måltid</label><input id="m-lite" type="number" value="${m.lite}"></div>
     <div><label>Middels måltid</label><input id="m-middels" type="number" value="${m.middels}"></div></div>
     <div class="to-kol"><div><label>Stort måltid</label><input id="m-stort" type="number" value="${m.stort}"></div>
     <div><label>Snack</label><input id="m-snack" type="number" value="${m.snack}"></div></div>
     <label>Drikke</label><input id="m-drikke" type="number" value="${m.drikke}">
-    <button class="sekundær" onclick="lagreMåltider()">Lagre knapper</button></div>`;
-  h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Egne knapper</div>`+(S.favs.length?S.favs.map((f,i)=>`<div class="rad"><span class="navn">⭐ ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join(''):`<div class="sub">Ingen egne knapper ennå.</div>`)+`<button class="sekundær" style="margin-top:8px;" onclick="nyFavKnapp()">＋ Legg til egen knapp</button></div>`;
+    <button class="sekundær" onclick="lagreMåltider()">Oppdater</button>
+    <div class="sub" style="font-weight:700;margin-top:12px;margin-bottom:4px;">Egne knapper</div>`
+    +(S.favs.length?S.favs.map((f,i)=>`<div class="rad"><span class="navn">⭐ ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join(''):`<div class="sub">Ingen egne knapper ennå.</div>`)
+    +`<button class="sekundær" style="margin-top:8px;" onclick="nyFavKnapp()">＋ Legg til egen knapp</button></div>`;
+  h+=`<div class="card"><div class="sub" style="font-weight:700;">📏 Kroppsmål som trackes</div>
+    <div class="sub" style="margin:4px 0 6px;">Valgte mål dukker opp under Utvikling. Midje+nakke${S.profile&&S.profile.sex==='f'?'+hofte':''} trengs for fettprosent-estimatet.</div>
+    ${MÅLDEF.map(x=>`<label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:6px 0;"><input type="checkbox" style="width:auto;" ${S.måltyper[x.id]?'checked':''} onchange="S.måltyper['${x.id}']=this.checked;lagre();"> ${x.navn}</label>`).join('')}</div>`;
   if(!aiNøkkel()){
     h+=`<div class="card"><div class="sub" style="font-weight:700;">🔑 Aktiver AI-funksjoner</div>
-      <div class="sub" style="margin:6px 0;">Skriv inn innloggingskoden, så aktiveres smart logging, foto, Murph og råd – uten å hanskes med API-nøkler.</div>
+      <div class="sub" style="margin:6px 0;">Skriv inn innloggingskoden, så aktiveres smart logging, foto, Murph og råd.</div>
       <input id="ai-kode" type="password" inputmode="numeric" placeholder="Kode" autocomplete="off">
       <button class="primær" onclick="aktiverMedKode()">Aktiver</button></div>`;
   }
@@ -435,7 +453,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-07.7</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.1</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -899,6 +917,7 @@ document.addEventListener('touchend',()=>{ptrY=null;},{passive:true});
 // ===================== Oppstart =====================
 last();
 render();
+try{const husk=sessionStorage.getItem('mb_fane');if(husk&&husk!=='hjem'&&S.profile)vis(husk);}catch(e){}
 oppdaterStatusRåd(false);
 setInterval(()=>{if(aktivFane==='hjem')render();},60000);
 setInterval(()=>oppdaterStatusRåd(false),1800000);
