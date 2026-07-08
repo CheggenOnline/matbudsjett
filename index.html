@@ -58,10 +58,14 @@
     #toast{position:absolute;}
     #modal{position:absolute;}
   }
+  #ptrSnurr{position:absolute;left:50%;margin-left:-13px;top:calc(6px + env(safe-area-inset-top,0px));width:26px;height:26px;border-radius:50%;border:3px solid rgba(0,0,0,.12);border-top-color:var(--grønn);opacity:0;z-index:45;pointer-events:none;}
+  #ptrSnurr.spinn{animation:ptrspinn .7s linear infinite;}
+  @keyframes ptrspinn{to{transform:rotate(360deg)}}
   #modal .boks{background:#fff;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));width:100%;max-width:520px;max-height:75vh;overflow:auto;}
 </style>
 </head>
 <body>
+<div id="ptrSnurr"></div>
 <div id="app"></div>
 <div class="tabs">
   <button id="tab-hjem" class="on" onclick="vis('hjem')"><span class="ikon">🥑</span>Mat</button>
@@ -444,7 +448,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.7</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.8</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -910,21 +914,51 @@ function toast(t){
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.style.display='none';},3500);
 }
 
-// ===================== Dra-ned-for-å-oppdatere =====================
-let ptrY=null;
-document.addEventListener('touchstart',e=>{ptrY=(document.getElementById('app').scrollTop<=0&&document.getElementById('modal').style.display!=='flex')?e.touches[0].clientY:null;},{passive:true});
+// ===================== Dra-ned-for-å-oppdatere (Outlook-stil) =====================
+let ptrStartY=null,ptrDelta=0,ptrLåst=false;
+function ptrApp(){return document.getElementById('app');}
+function ptrS(){return document.getElementById('ptrSnurr');}
+document.addEventListener('touchstart',e=>{
+  if(ptrLåst)return;
+  ptrDelta=0;
+  ptrStartY=(ptrApp().scrollTop<=0&&document.getElementById('modal').style.display!=='flex')?e.touches[0].clientY:null;
+},{passive:true});
 document.addEventListener('touchmove',e=>{
-  if(ptrY===null)return;
-  if(e.touches[0].clientY-ptrY>90){
-    ptrY=null;
-    const el=document.createElement('div');
-    el.textContent='🔄 Oppdaterer…';
-    el.style.cssText='position:fixed;top:calc(14px + env(safe-area-inset-top));left:0;right:0;text-align:center;font-weight:800;font-size:15px;z-index:80;color:var(--grønn);';
-    document.body.appendChild(el);
-    setTimeout(()=>location.reload(),350);
+  if(ptrStartY===null||ptrLåst)return;
+  const d=e.touches[0].clientY-ptrStartY;
+  if(d<=0){if(ptrDelta){ptrDelta=0;ptrTegn();}return;}
+  ptrDelta=Math.min(130,d*0.45);
+  ptrTegn();
+},{passive:true});
+document.addEventListener('touchend',()=>{
+  if(ptrStartY===null||ptrLåst)return;
+  ptrStartY=null;
+  const app=ptrApp(),s2=ptrS();
+  if(ptrDelta>=60){
+    ptrLåst=true;
+    app.style.transition='transform .2s ease-out';
+    app.style.transform='translateY(58px)';
+    s2.style.transition='top .2s ease-out';
+    s2.style.top='calc(20px + env(safe-area-inset-top,0px))';
+    s2.style.opacity='1';
+    s2.classList.add('spinn');
+    setTimeout(()=>location.replace('./?v='+Date.now()),650);
+  }else{
+    app.style.transition='transform .25s ease-out';
+    app.style.transform='';
+    s2.style.opacity='0';
+    ptrDelta=0;
   }
 },{passive:true});
-document.addEventListener('touchend',()=>{ptrY=null;},{passive:true});
+function ptrTegn(){
+  const app=ptrApp(),s2=ptrS();
+  app.style.transition='none';
+  app.style.transform=ptrDelta?('translateY('+ptrDelta+'px)'):'';
+  s2.style.transition='none';
+  s2.style.opacity=String(Math.min(1,ptrDelta/60));
+  s2.style.top='calc('+(ptrDelta*0.45)+'px + env(safe-area-inset-top,0px))';
+  s2.style.transform='rotate('+(ptrDelta*3.2)+'deg)';
+}
 
 // ===================== Oppstart =====================
 last();
@@ -934,7 +968,7 @@ oppdaterStatusRåd(false);
 loggBruk();
 setInterval(()=>{if(aktivFane==='hjem')render();},60000);
 setInterval(()=>oppdaterStatusRåd(false),1800000);
-const DENNE_VERSJON='2026-07-08.7';
+const DENNE_VERSJON='2026-07-08.8';
 async function sjekkNyVersjon(){
   try{
     const t=await fetch('index.html?v='+Date.now(),{cache:'no-store'}).then(r=>r.text());
