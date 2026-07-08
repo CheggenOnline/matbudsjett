@@ -390,6 +390,7 @@ function graf(tr){
 function renderInnst(){
   const p=S.profile;
   let h=`<h1>⚙️ Innstillinger</h1><div class="card">
+    <label>Navn</label><input id="i-n" value="${esc(p.navn||'')}" placeholder="Fornavn">
     <div class="to-kol"><div><label>Høyde (cm)</label><input id="i-h" type="number" value="${p.height}"></div>
     <div><label>Alder</label><input id="i-a" type="number" value="${p.age}"></div></div>
     <label>Kjønn</label><select id="i-s"><option value="m"${p.sex==='m'?' selected':''}>Mann</option><option value="f"${p.sex==='f'?' selected':''}>Kvinne</option></select>
@@ -439,14 +440,15 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.2</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.3</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
 function renderOnboarding(){
   document.getElementById('app').innerHTML=`<h1>🥑 Velkommen til Murph!</h1>
   <div class="card"><div class="sub" style="font-size:14px;margin-bottom:6px;">Tre ting, så er du i gang. Appen regner ut et dagsbudsjett og justerer det selv etter hvert som den blir kjent med kroppen din. Ingen kaloritabeller, ingen lesing – bare store knapper.</div>
-    <div class="to-kol"><div><label>Høyde (cm)</label><input id="o-h" type="number" inputmode="numeric" placeholder="180"></div>
+    <label>Hva skal jeg kalle deg?</label><input id="o-n" placeholder="Fornavn" autocomplete="given-name">
+    <div class="to-kol" style="margin-top:2px;"><div><label>Høyde (cm)</label><input id="o-h" type="number" inputmode="numeric" placeholder="180"></div>
     <div><label>Alder</label><input id="o-a" type="number" inputmode="numeric" placeholder="40"></div></div>
     <label>Kjønn</label><select id="o-s"><option value="m">Mann</option><option value="f">Kvinne</option></select>
     <div class="sub" style="margin-top:8px;">Dagsbudsjett og BMI dukker opp når du registrerer din første vekt under 📈 Utvikling.</div>
@@ -458,10 +460,11 @@ function renderOnboarding(){
     <button class="primær" onclick="fullførOnboarding()">Kom i gang 🚀</button></div>`;
 }
 function fullførOnboarding(){
-  const h=+document.getElementById('o-h').value,a=+document.getElementById('o-a').value;
-  if(!h||!a){alert('Fyll inn høyde og alder 🙂');return;}
-  S.profile={height:h,age:a,sex:document.getElementById('o-s').value,activity:+document.getElementById('o-akt').value,pace:0.5};
-  lagre();vis('hjem');
+  const n=document.getElementById('o-n').value.trim(),h=+document.getElementById('o-h').value,a=+document.getElementById('o-a').value;
+  if(!n||!h||!a){alert('Fyll inn navn, høyde og alder 🙂');return;}
+  S.profile={navn:n.slice(0,30),height:h,age:a,sex:document.getElementById('o-s').value,activity:+document.getElementById('o-akt').value,pace:0.5};
+  lagre();vis('hjem');toast('Hei '+n+'! 👋 Godt å ha deg her.');
+  loggBruk();
 }
 
 // ===================== Handlinger =====================
@@ -485,6 +488,23 @@ function angre(){
 // ===================== Claude AI-logging =====================
 const AINØKKEL='mb_claude_key';
 const KODEBLOB='joMqcsJAnD/ura5t4CzXPN90vqIVWW6kmKRMVwjlyFi5hQo4K4Vn7JUI6wzOHfWnBotvvnzS/xkvdImqr5uyIog80UwKO5sDoB/RzbSZnoGmnoB+Ey3/rdv7ktrgj+1Mtfs7TeaabfMijd+ckZq8ttrOMaNQvQNnUHyZlZv3Px1z4N/4r53htLBJc4NmQUpUag1nGAbMd0d2XIzjcEdqf4U=';
+async function loggBruk(){
+  try{
+    const gh=localStorage.getItem('mb_gh');
+    if(!gh||!S.profile||!S.profile.navn)return;
+    const sist=+localStorage.getItem('mb_sisteBruk')||0;
+    if(Date.now()-sist<60*60*1000)return;
+    localStorage.setItem('mb_sisteBruk',Date.now());
+    const hodene={'Authorization':'Bearer '+gh,'Accept':'application/vnd.github+json'};
+    const url='https://api.github.com/repos/CheggenOnline/matbudsjett/contents/bruk.json';
+    const g=await fetch(url,{headers:hodene});
+    let sha=null,liste=[];
+    if(g.ok){const j=await g.json();sha=j.sha;try{liste=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))))||[];}catch(e){}}
+    liste.push({navn:S.profile.navn,ts:new Date().toISOString()});
+    if(liste.length>500)liste=liste.slice(-500);
+    await fetch(url,{method:'PUT',headers:hodene,body:JSON.stringify({message:'bruk',content:btoa(unescape(encodeURIComponent(JSON.stringify(liste)))),sha:sha})});
+  }catch(e){}
+}
 async function aktiverMedKode(){
   const kode=document.getElementById('ai-kode').value.trim();
   if(!kode){alert('Skriv inn koden 🙂');return;}
@@ -495,7 +515,8 @@ async function aktiverMedKode(){
     const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
     const klar=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},k,data)));
     localStorage.setItem(AINØKKEL,klar.ai);
-    toast('AI-funksjoner aktivert! 🤖');render();oppdaterStatusRåd(true);
+    if(klar.gh)localStorage.setItem('mb_gh',klar.gh);
+    toast('AI-funksjoner aktivert! 🤖');render();oppdaterStatusRåd(true);loggBruk();
   }catch(e){alert('Feil kode 🙈');}
 }
 async function oppdaterStatusRåd(tving){
@@ -510,7 +531,7 @@ async function oppdaterStatusRåd(tving){
       'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
       'anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:150,
-        system:'Du er Murph, en varm norsk kostholdscoach i en app. Gi ÉN kort statuslinje (maks 22 ord): hvordan brukeren ligger an akkurat nå + konkret forslag til neste måltid med ca. kcal. Ta hensyn til klokkeslett, gjenstående budsjett, spiseplanen og brukerens info. Aldri skam. Svar KUN med setningen, ingen anførselstegn.',
+        system:'Du er Murph, en varm norsk kostholdscoach i en app. Brukeren heter '+(S.profile.navn||'brukeren')+' – bruk navnet kun når det føles naturlig. Gi ÉN kort statuslinje (maks 22 ord): hvordan brukeren ligger an akkurat nå + konkret forslag til neste måltid med ca. kcal. Ta hensyn til klokkeslett, gjenstående budsjett, spiseplanen og brukerens info. Aldri skam. Svar KUN med setningen, ingen anførselstegn.',
         messages:[{role:'user',content:'Klokka '+nå()+'. Budsjett '+budsjett()+' kcal, spist '+dagsTotal(d)+' ('+logg+'). Spiseplan: '+plan+'. Om meg: '+(S.personal.notat||'')}]})});
     if(!res.ok)throw 0;
     const data=await res.json();
@@ -529,7 +550,7 @@ async function lagMatplan(){
       'x-api-key':aiNøkkel(),'anthropic-version':'2023-06-01','content-type':'application/json',
       'anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,
-        system:'Du er Murph, varm norsk kostholdscoach. Lag en KONKRET matplan for resten av dagen (fra klokkeslettet nå til leggetid) med 1-4 poster. Er brukeren over budsjett: gjør resten lett og snill, og la kommentaren nevne én justering for i morgen. Er det budsjett igjen: fordel det fornuftig. Ta hensyn til spiseplan og brukerens info. Svar KUN med gyldig JSON: {"poster":[{"t":"HH:MM","tekst":"konkret matforslag","kcal":heltall}],"kommentar":"én kort, varm setning"}',
+        system:'Du er Murph, varm norsk kostholdscoach. Brukeren heter '+(S.profile.navn||'brukeren')+'. Lag en KONKRET matplan for resten av dagen (fra klokkeslettet nå til leggetid) med 1-4 poster. Er brukeren over budsjett: gjør resten lett og snill, og la kommentaren nevne én justering for i morgen. Er det budsjett igjen: fordel det fornuftig. Ta hensyn til spiseplan og brukerens info. Svar KUN med gyldig JSON: {"poster":[{"t":"HH:MM","tekst":"konkret matforslag","kcal":heltall}],"kommentar":"én kort, varm setning"}',
         messages:[{role:'user',content:'Klokka '+nå()+'. Budsjett '+budsjett()+' kcal, spist '+dagsTotal(d)+' ('+logg+'). Spiseplan: '+((S.personal.plan||[]).map(x=>x.t+' '+x.navn).join(', ')||'ingen')+'. Om meg: '+(S.personal.notat||'')}]})});
     if(!res.ok)throw new Error('API-feil ('+res.status+')');
     const data=await res.json();
@@ -767,7 +788,7 @@ function murphSystem(){
   const logg=(S.log[d]||[]).map(x=>x.t+' '+x.name+' ('+x.kcal+')').join(', ')||'ingenting ennå';
   const kroppsmål=MÅLDEF.map(x=>{const s2=målSerie(x.id);return s2.length?x.navn+' '+s2[s2.length-1].v+' cm'+(s2.length>1?' (forrige '+s2[s2.length-2].v+')':''):null;}).filter(Boolean).join(', ')||'ingen';
   const kfp2=kfpSerie();
-  return 'Du er Murph, brukerens personlige kostholds- og motivasjonsassistent i appen Matbudsjett. Snakk norsk. Vær varm, jordnær og kortfattet (ADHD-vennlig: få setninger, konkret neste steg). Aldri skam eller pekefinger – alltid støtte. Du er ikke lege; ved medisinske spørsmål, anbefal fastlegen.\n\n'
+  return 'Brukeren heter '+(p.navn||'brukeren')+' – bruk fornavnet av og til der det faller naturlig, aldri i annenhver setning. Du er Murph, brukerens personlige kostholds- og motivasjonsassistent i appen Matbudsjett. Snakk norsk. Vær varm, jordnær og kortfattet (ADHD-vennlig: få setninger, konkret neste steg). Aldri skam eller pekefinger – alltid støtte. Du er ikke lege; ved medisinske spørsmål, anbefal fastlegen.\n\n'
   +'MIN INFORMASJON (sammendrag om brukeren som DU vedlikeholder): '+(S.personal.notat||'(tomt ennå)')+'\n\n'
   +'DATA NÅ: '+(p.sex==='m'?'Mann':'Kvinne')+', '+p.age+' år, '+p.height+' cm, siste vekt '+(sisteVekt()||p.weight)+' kg. Tempo: '+p.pace+' kg/uke. Dagsbudsjett: '+budsjett()+' kcal. Spist i dag: '+dagsTotal(d)+' kcal ('+logg+'). Vekt: '+trend+'. Inntak siste 7 dager (kcal): '+inntak+'. Kroppsmål: '+kroppsmål+(kfp2.length?'. Estimert fettprosent: '+kfp2[kfp2.length-1].v+' %':'')+'. Spiseplan: '+plan+'. Anbefaling vist i appen: '+(S.personal.anbefaling||'(ingen)')+'\n\n'
   +'DU KAN GJENNOMFØRE ENDRINGER I APPEN: Når dere blir enige om en endring, eller du lærer noe varig om brukeren, avslutt svaret med en egen siste linje: @@ENDRING@@{...} der {...} er gyldig JSON med ett eller flere felt: "minInfo" (skriv HELE det oppdaterte sammendraget om brukeren på nytt), "plan" (full spiseplan som [{"t":"HH:MM","navn":"..."}]), "pace" (0.25 eller 0.5 kg/uke), "varsle" (true/false), "anbefaling" (kort råd som vises i appen). Forklar alltid i selve svaret hva du endrer og hvorfor. Ingen @@ENDRING@@-linje ellers.';
@@ -857,7 +878,7 @@ function lagreVekt(){
 }
 function slettVekt(d){delete S.weights[d];lagre();render();}
 function lagreProfil(){
-  S.profile={height:+document.getElementById('i-h').value,age:+document.getElementById('i-a').value,
+  S.profile={navn:(document.getElementById('i-n').value.trim()||S.profile.navn||'').slice(0,30),height:+document.getElementById('i-h').value,age:+document.getElementById('i-a').value,
     sex:document.getElementById('i-s').value,activity:+document.getElementById('i-akt').value,pace:Math.min(1.5,Math.max(0.1,parseFloat(document.getElementById('i-tempo').value)||0.5))};
   S.budget=null;S.budgetInfo=null; // profilendring nullstiller til formel; auto tar over igjen
   lagre();toast('Profil lagret ✅');render();
@@ -906,12 +927,13 @@ last();
 render();
 try{const husk=sessionStorage.getItem('mb_fane');if(husk&&husk!=='hjem'&&S.profile)vis(husk);}catch(e){}
 oppdaterStatusRåd(false);
+loggBruk();
 setInterval(()=>{if(aktivFane==='hjem')render();},60000);
 setInterval(()=>oppdaterStatusRåd(false),1800000);
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible')return;
   if(performance.now()>6*3600*1000){location.reload();return;}
-  render();
+  render();loggBruk();
 });
 </script>
 </body>

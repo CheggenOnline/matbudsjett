@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Murph admin</title>
+<style>
+  body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#f6f3ea;color:#1f2d27;padding:calc(14px + env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom));}
+  h1{font-size:20px;}
+  .card{background:#fff;border-radius:16px;padding:14px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.07);max-width:520px;}
+  .rad{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid #f0ede4;font-size:14px;}
+  .rad:last-child{border-bottom:none;}
+  .rad .n{flex:1;font-weight:700;}
+  .rad .k{color:#888;font-size:12px;white-space:nowrap;}
+  .sub{font-size:13px;color:#7a857f;}
+  input{font-size:16px;padding:10px 12px;border:1px solid #ddd;border-radius:12px;width:100%;box-sizing:border-box;}
+  button{border:none;border-radius:12px;padding:12px;font-size:15px;font-weight:800;cursor:pointer;background:#0e7c5b;color:#fff;width:100%;margin-top:8px;}
+  #innhold{display:none;}
+</style>
+</head>
+<body>
+<h1>🥑 Murph – bruksoversikt</h1>
+<div class="card" id="lås">
+  <input id="kode" type="password" inputmode="numeric" placeholder="Kode" onkeydown="if(event.key==='Enter')låsOpp()">
+  <button onclick="låsOpp()">Vis</button>
+  <div class="sub" id="feil" style="margin-top:6px;"></div>
+</div>
+<div id="innhold">
+  <div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Per bruker</div><div id="brukere"></div></div>
+  <div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Siste aktivitet</div><div id="logg"></div></div>
+</div>
+<script>
+const KODEBLOB='joMqcsJAnD/ura5t4CzXPN90vqIVWW6kmKRMVwjlyFi5hQo4K4Vn7JUI6wzOHfWnBotvvnzS/xkvdImqr5uyIog80UwKO5sDoB/RzbSZnoGmnoB+Ey3/rdv7ktrgj+1Mtfs7TeaabfMijd+ckZq8ttrOMaNQvQNnUHyZlZv3Px1z4N/4r53htLBJc4NmQUpUag1nGAbMd0d2XIzjcEdqf4U=';
+function esc(s){return String(s).replace(/</g,'&lt;');}
+async function låsOpp(){
+  const kode=document.getElementById('kode').value;
+  try{
+    const rå=Uint8Array.from(atob(KODEBLOB),c=>c.charCodeAt(0));
+    const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(kode),'PBKDF2',false,['deriveKey']);
+    const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:rå.slice(0,16),iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+    await crypto.subtle.decrypt({name:'AES-GCM',iv:rå.slice(16,28)},k,rå.slice(28));
+  }catch(e){document.getElementById('feil').textContent='Feil kode 🙈';return;}
+  document.getElementById('lås').style.display='none';
+  document.getElementById('innhold').style.display='block';
+  vis();
+}
+function fmt(ts){
+  const d=new Date(ts);
+  return d.toLocaleDateString('nb-NO',{weekday:'short',day:'numeric',month:'short'})+' kl. '+d.toTimeString().slice(0,5);
+}
+async function vis(){
+  let liste=[];
+  try{liste=await fetch('bruk.json?v='+Date.now()).then(r=>r.json());}catch(e){}
+  if(!Array.isArray(liste)||!liste.length){
+    document.getElementById('brukere').innerHTML='<div class="sub">Ingen bruk registrert ennå. (Brukerne må ha aktivert AI-funksjoner med kode etter at sporing ble slått på.)</div>';
+    document.getElementById('logg').innerHTML='';return;
+  }
+  const per={};
+  liste.forEach(x=>{if(!per[x.navn])per[x.navn]={antall:0,sist:x.ts};per[x.navn].antall++;if(x.ts>per[x.navn].sist)per[x.navn].sist=x.ts;});
+  document.getElementById('brukere').innerHTML=Object.keys(per).sort((a,b)=>per[b].sist<per[a].sist?-1:1).map(n=>
+    '<div class="rad"><span class="n">'+esc(n)+'</span><span class="k">'+per[n].antall+' økter · sist '+fmt(per[n].sist)+'</span></div>').join('');
+  document.getElementById('logg').innerHTML=liste.slice(-60).reverse().map(x=>
+    '<div class="rad"><span class="n">'+esc(x.navn)+'</span><span class="k">'+fmt(x.ts)+'</span></div>').join('');
+}
+</script>
+</body>
+</html>
