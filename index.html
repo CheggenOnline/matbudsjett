@@ -17,8 +17,7 @@
   *{box-sizing:border-box;}
   html{background:#fff;}
   html,body{margin:0;padding:0;height:100%;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--krem);color:var(--mørk);}
-  body{position:fixed;inset:0;overflow:hidden;width:100%;}
-  @supports(height:100dvh){body{height:100dvh;}}
+  body{overflow:hidden;position:relative;}
   #app{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;max-width:520px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom));}
   h1{font-size:22px;margin:4px 0 12px;}
   .card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);}
@@ -39,7 +38,7 @@
   .rad .navn{flex:1;}
   .rad .kcal{font-weight:800;white-space:nowrap;}
   .rad button{border:none;background:#eee;border-radius:10px;padding:5px 10px;font-weight:700;cursor:pointer;color:#666;}
-  .tabs{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;box-shadow:0 -2px 10px rgba(0,0,0,.1);padding-bottom:max(2px,calc(env(safe-area-inset-bottom) - 22px));z-index:50;}
+  .tabs{position:absolute;bottom:0;left:0;right:0;background:#fff;display:flex;box-shadow:0 -2px 10px rgba(0,0,0,.1);padding-bottom:max(2px,calc(env(safe-area-inset-bottom) - 24px));z-index:50;}
   .tabs::after{content:'';position:absolute;top:100%;left:0;right:0;height:220px;background:#fff;}
   .tabs button{flex:1;border:none;background:none;padding:12px 0 10px;font-size:12px;font-weight:700;color:#8a938d;cursor:pointer;}
   .tabs button.on{color:var(--grønn);}
@@ -48,13 +47,13 @@
   label{display:block;font-size:13px;font-weight:700;margin:12px 0 4px;color:#5a655f;}
   .primær{border:none;border-radius:14px;padding:14px;width:100%;font-size:17px;font-weight:800;background:var(--grønn);color:#fff;cursor:pointer;margin-top:14px;}
   .sekundær{border:none;border-radius:14px;padding:12px;width:100%;font-size:15px;font-weight:700;background:#e9e5da;color:var(--mørk);cursor:pointer;margin-top:10px;}
-  #toast{position:fixed;bottom:calc(92px + env(safe-area-inset-bottom));left:16px;right:16px;max-width:488px;margin:0 auto;background:var(--mørk);color:#fff;border-radius:14px;padding:13px 16px;font-size:15px;font-weight:700;display:none;z-index:60;display:none;align-items:center;justify-content:space-between;}
+  #toast{position:absolute;bottom:calc(92px + env(safe-area-inset-bottom));left:16px;right:16px;max-width:488px;margin:0 auto;background:var(--mørk);color:#fff;border-radius:14px;padding:13px 16px;font-size:15px;font-weight:700;display:none;z-index:60;display:none;align-items:center;justify-content:space-between;}
   #toast button{border:none;background:#fff2;color:#fff;border-radius:10px;padding:6px 12px;font-weight:800;cursor:pointer;}
   .banner{background:#eaf6e5;border:1.5px solid var(--lysgrønn);border-radius:14px;padding:12px 14px;font-size:14px;margin-bottom:14px;}
   .banner.info{background:#fdf6e7;border-color:var(--gul);}
   .to-kol{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   svg text{font-family:inherit;}
-  #modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none;align-items:flex-end;justify-content:center;}
+  #modal{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none;align-items:flex-end;justify-content:center;}
   #modal .boks{background:#fff;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));width:100%;max-width:520px;max-height:75vh;overflow:auto;}
 </style>
 </head>
@@ -79,6 +78,7 @@ function last(){try{S=JSON.parse(localStorage.getItem(NØKKEL));}catch(e){S=null
   if(!S.personal)S.personal={notat:'',anbefaling:'',plan:[],varsle:false};
   if(!S.murph)S.murph={meldinger:[]};
   if(S.visKnapper===undefined)S.visKnapper=true;
+  if(S.profile&&S.profile.weight){if(!Object.keys(S.weights).length)S.weights[new Date(Date.now()-3*3600*1000).toLocaleDateString('sv-SE')]=S.profile.weight;delete S.profile.weight;}
   if(!S.mål)S.mål={};
   if(!S.måltyper)S.måltyper={midje:true,hofte:true,nakke:true,bryst:false,lår:false,arm:false};}
 function lagre(){try{localStorage.setItem(NØKKEL,JSON.stringify(S));}catch(e){}}
@@ -88,15 +88,16 @@ const nå=()=>new Date().toTimeString().slice(0,5);
 // ===================== Kalorimotor =====================
 function sisteVekt(){
   const ds=Object.keys(S.weights).sort();
-  return ds.length?S.weights[ds[ds.length-1]]:(S.profile?S.profile.weight:null);
+  return ds.length?S.weights[ds[ds.length-1]]:null;
 }
 function bmr(){
   const p=S.profile; if(!p)return null;
-  const w=sisteVekt()||p.weight;
+  const w=sisteVekt(); if(!w)return null;
   return p.sex==='m'?10*w+6.25*p.height-5*p.age+5:10*w+6.25*p.height-5*p.age-161;
 }
 function formelTDEE(){const b=bmr();return b?b*S.profile.activity:null;}
-function underskudd(){return S.profile&&S.profile.pace===0.25?275:550;}
+
+function underskudd(){const pace=(S.profile&&S.profile.pace)||0.5;return Math.round(pace*7700/7);}
 function gulv(){return S.profile&&S.profile.sex==='m'?1500:1200;}
 function budsjett(){
   if(S.budget)return S.budget;
@@ -115,7 +116,7 @@ function trendSerie(){
 }
 // Ukentlig justering: baklengs-utregnet forbruk fra inntak + vekttrend
 function kanskjeJuster(){
-  if(!S.profile)return;
+  if(!S.profile||!sisteVekt())return;
   const idag=iDag();
   if(S.lastAdjust&&(new Date(idag)-new Date(S.lastAdjust))/86400000<7)return;
   const vindu=14;
@@ -163,15 +164,19 @@ function render(){
 function esc(s){return String(s).replace(/</g,'&lt;');}
 
 function renderHjem(){
-  const b=budsjett(), brukt=dagsTotal(iDag()), igjen=b-brukt;
-  const pst=Math.min(100,Math.round(100*brukt/b));
+  const b=budsjett(), brukt=dagsTotal(iDag()), igjen=(b||0)-brukt;
+  const pst=b?Math.min(100,Math.round(100*brukt/b)):0;
   const farge=igjen>=0?(pst<80?'#3f9e4f':'#e8a13c'):'#7c6bb0';
   const status=igjen>=0?`<span class="stor">${igjen}</span> <span style="font-size:18px;font-weight:700;">kcal igjen i dag</span>`
     :`<span class="stor" style="color:var(--lilla);">${-igjen}</span> <span style="font-size:18px;font-weight:700;">over – helt ok, i morgen er ny dag 💜</span>`;
   let h=`<h1>🥑 Murph</h1>`;
   if(S.sisteJusteringMelding){h+=`<div class="banner">${S.sisteJusteringMelding} <button style="border:none;background:none;font-weight:800;cursor:pointer;color:var(--grønn);" onclick="S.sisteJusteringMelding=null;lagre();render()">OK</button></div>`;}
   h+=smellSjekk();
-  if(!Object.keys(S.weights).length){h+=`<div class="banner info">🏖️ Ingen veiinger ennå – null stress. Budsjettet er formelbasert, og den smarte justeringen starter av seg selv når du begynner å veie deg.</div>`;}
+  if(!b){
+    h+=`<div class="card"><div style="font-weight:800;font-size:17px;">💡 Nesten klar!</div>
+      <div class="sub" style="margin:6px 0;">Registrer din første vekt, så regner jeg ut dagsbudsjettet ditt (og BMI). Loggingen under funker allerede nå.</div>
+      <button class="primær" onclick="vis('vekt')">📈 Registrer vekt</button></div>`;
+  }else
   h+=`<div class="card"><div>${status}</div>
     <div class="bar"><div style="width:${pst}%;background:${farge};"></div></div>
     <div class="sub">Budsjett: ${b} kcal · Logget: ${brukt} kcal${S.budgetInfo&&S.budgetInfo.source==='auto'?' · 📊 auto-justert':''}</div>
@@ -179,12 +184,7 @@ function renderHjem(){
   const m=S.meals;
   h+=`<div class="card"><div class="sub" style="margin-bottom:8px;font-weight:700;">Trykk én gang – ferdig logget:</div>
     <div class="knapper">
-    ${S.visKnapper?`<button class="k" onclick="loggMat('Lite måltid',${m.lite})">🍽️ Lite måltid<small>${m.lite} kcal</small></button>
-    <button class="k" onclick="loggMat('Middels måltid',${m.middels})">🍽️ Middels måltid<small>${m.middels} kcal</small></button>
-    <button class="k" onclick="loggMat('Stort måltid',${m.stort})">🍽️ Stort måltid<small>${m.stort} kcal</small></button>
-    <button class="k snack" onclick="loggMat('Snack',${m.snack})">🍪 Snack<small>${m.snack} kcal</small></button>
-    <button class="k drikke" onclick="loggMat('Drikke',${m.drikke})">🥤 Drikke<small>${m.drikke} kcal</small></button>
-    ${S.favs.map((f,i)=>`<button class="k fav" onclick="loggMat('${esc(f.name).replace(/'/g,"\\'")}',${f.kcal})">⭐ ${esc(f.name)}<small>${f.kcal} kcal</small></button>`).join('')}`:''}
+    ${S.favs.map((f,i)=>`<button class="k fav" onclick="loggMat('${esc(f.name).replace(/'/g,"\\'")}',${f.kcal})">${f.ikon||'⭐'} ${esc(f.name)}<small>${f.kcal} kcal</small></button>`).join('')}
     ${aiNøkkel()?`<button class="k" style="background:#7c6bb0;" onclick="åpneAiModal()">🤖 Beskriv måltid<small>Claude teller kcal</small></button>`:''}
     <button class="k" style="background:#5a5f9e;" onclick="kameraKlikk()">📷 Ta / velg bilde<small>Claude teller kcal</small></button>
     </div></div>`;
@@ -392,35 +392,21 @@ function renderInnst(){
   let h=`<h1>⚙️ Innstillinger</h1><div class="card">
     <div class="to-kol"><div><label>Høyde (cm)</label><input id="i-h" type="number" value="${p.height}"></div>
     <div><label>Alder</label><input id="i-a" type="number" value="${p.age}"></div></div>
-    <div class="to-kol"><div><label>Kjønn</label><select id="i-s"><option value="m"${p.sex==='m'?' selected':''}>Mann</option><option value="f"${p.sex==='f'?' selected':''}>Kvinne</option></select></div>
-    <div><label>Startvekt (kg)</label><input id="i-w" type="number" step="0.1" value="${p.weight}"></div></div>
+    <label>Kjønn</label><select id="i-s"><option value="m"${p.sex==='m'?' selected':''}>Mann</option><option value="f"${p.sex==='f'?' selected':''}>Kvinne</option></select>
     <label>Aktivitetsnivå i hverdagen</label><select id="i-akt">
       <option value="1.2"${p.activity===1.2?' selected':''}>Mest stillesittende</option>
       <option value="1.375"${p.activity===1.375?' selected':''}>Litt aktiv (går en del)</option>
       <option value="1.55"${p.activity===1.55?' selected':''}>Moderat aktiv (trener 3–5 ggr/uke)</option>
       <option value="1.725"${p.activity===1.725?' selected':''}>Svært aktiv</option></select>
-    <label>Tempo</label><select id="i-tempo">
-      <option value="0.25"${p.pace===0.25?' selected':''}>Ekstra rolig (~0,25 kg/uke)</option>
-      <option value="0.5"${p.pace===0.5?' selected':''}>Rolig (~0,5 kg/uke)</option></select>
+    <label>Ønsket vektnedgang per uke (kg)</label><input id="i-tempo" type="number" step="0.1" min="0.1" max="1.5" inputmode="decimal" value="${p.pace}">
+    <div class="sub" style="margin-top:4px;">0,3–0,7 er bærekraftig for de fleste. Maks 1,5.</div>
     <button class="primær" onclick="lagreProfil()">Lagre profil</button>
     <div class="sub" style="margin-top:8px;">Budsjettet regnes ut fra dette – og finjusterer seg selv ukentlig ut fra faktisk inntak og vekttrend.</div></div>`;
   const m=S.meals;
-  h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:6px;">Loggeknapper</div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:0;"><input type="checkbox" style="width:auto;" ${S.visKnapper?'checked':''} onchange="S.visKnapper=this.checked;lagre();toast(this.checked?'Hurtigknapper på ✅':'Viser kun foto og beskriv 📷🤖')"> Vis hurtigknapper på Mat-siden</label>
-    <div class="sub" style="margin-top:6px;">Av = kun «📷 Ta/velg bilde» og «🤖 Beskriv måltid» vises.</div>
-    <div class="sub" style="font-weight:700;margin-top:12px;">Kalorier per knapp</div>
-    <div class="to-kol"><div><label>Lite måltid</label><input id="m-lite" type="number" value="${m.lite}"></div>
-    <div><label>Middels måltid</label><input id="m-middels" type="number" value="${m.middels}"></div></div>
-    <div class="to-kol"><div><label>Stort måltid</label><input id="m-stort" type="number" value="${m.stort}"></div>
-    <div><label>Snack</label><input id="m-snack" type="number" value="${m.snack}"></div></div>
-    <label>Drikke</label><input id="m-drikke" type="number" value="${m.drikke}">
-    <button class="sekundær" onclick="lagreMåltider()">Oppdater</button>
-    <div class="sub" style="font-weight:700;margin-top:12px;margin-bottom:4px;">Egne knapper</div>`
-    +(S.favs.length?S.favs.map((f,i)=>`<div class="rad"><span class="navn">⭐ ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join(''):`<div class="sub">Ingen egne knapper ennå.</div>`)
+  h+=`<div class="card"><div class="sub" style="font-weight:700;margin-bottom:4px;">Loggeknapper</div>
+    <div class="sub" style="margin-bottom:6px;">«📷 Ta/velg bilde» og «🤖 Beskriv måltid» er alltid med. Egne knapper du legger til vises automatisk på Mat-siden – slett for å fjerne.</div>`
+    +(S.favs.length?S.favs.map((f,i)=>`<div class="rad"><span class="navn">${f.ikon||'⭐'} ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join(''):`<div class="sub">Ingen egne knapper ennå.</div>`)
     +`<button class="sekundær" style="margin-top:8px;" onclick="nyFavKnapp()">＋ Legg til egen knapp</button></div>`;
-  h+=`<div class="card"><div class="sub" style="font-weight:700;">📏 Kroppsmål som trackes</div>
-    <div class="sub" style="margin:4px 0 6px;">Valgte mål dukker opp under Utvikling. Midje+nakke${S.profile&&S.profile.sex==='f'?'+hofte':''} trengs for fettprosent-estimatet.</div>
-    ${MÅLDEF.map(x=>`<label style="display:flex;align-items:center;gap:8px;font-size:15px;margin:6px 0;"><input type="checkbox" style="width:auto;" ${S.måltyper[x.id]?'checked':''} onchange="S.måltyper['${x.id}']=this.checked;lagre();"> ${x.navn}</label>`).join('')}</div>`;
   if(!aiNøkkel()){
     h+=`<div class="card"><div class="sub" style="font-weight:700;">🔑 Aktiver AI-funksjoner</div>
       <div class="sub" style="margin:6px 0;">Skriv inn innloggingskoden, så aktiveres smart logging, foto, Murph og råd.</div>
@@ -453,7 +439,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.1</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.2</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -461,9 +447,9 @@ function renderOnboarding(){
   document.getElementById('app').innerHTML=`<h1>🥑 Velkommen til Murph!</h1>
   <div class="card"><div class="sub" style="font-size:14px;margin-bottom:6px;">Tre ting, så er du i gang. Appen regner ut et dagsbudsjett og justerer det selv etter hvert som den blir kjent med kroppen din. Ingen kaloritabeller, ingen lesing – bare store knapper.</div>
     <div class="to-kol"><div><label>Høyde (cm)</label><input id="o-h" type="number" inputmode="numeric" placeholder="180"></div>
-    <div><label>Vekt (kg)</label><input id="o-w" type="number" step="0.1" inputmode="decimal" placeholder="90"></div></div>
-    <div class="to-kol"><div><label>Alder</label><input id="o-a" type="number" inputmode="numeric" placeholder="40"></div>
-    <div><label>Kjønn</label><select id="o-s"><option value="m">Mann</option><option value="f">Kvinne</option></select></div></div>
+    <div><label>Alder</label><input id="o-a" type="number" inputmode="numeric" placeholder="40"></div></div>
+    <label>Kjønn</label><select id="o-s"><option value="m">Mann</option><option value="f">Kvinne</option></select>
+    <div class="sub" style="margin-top:8px;">Dagsbudsjett og BMI dukker opp når du registrerer din første vekt under 📈 Utvikling.</div>
     <label>Aktivitetsnivå i hverdagen</label><select id="o-akt">
       <option value="1.2">Mest stillesittende</option>
       <option value="1.375" selected>Litt aktiv (går en del)</option>
@@ -472,9 +458,9 @@ function renderOnboarding(){
     <button class="primær" onclick="fullførOnboarding()">Kom i gang 🚀</button></div>`;
 }
 function fullførOnboarding(){
-  const h=+document.getElementById('o-h').value,w=+document.getElementById('o-w').value,a=+document.getElementById('o-a').value;
-  if(!h||!w||!a){alert('Fyll inn høyde, vekt og alder 🙂');return;}
-  S.profile={height:h,weight:w,age:a,sex:document.getElementById('o-s').value,activity:+document.getElementById('o-akt').value,pace:0.5};
+  const h=+document.getElementById('o-h').value,a=+document.getElementById('o-a').value;
+  if(!h||!a){alert('Fyll inn høyde og alder 🙂');return;}
+  S.profile={height:h,age:a,sex:document.getElementById('o-s').value,activity:+document.getElementById('o-akt').value,pace:0.5};
   lagre();vis('hjem');
 }
 
@@ -513,7 +499,7 @@ async function aktiverMedKode(){
   }catch(e){alert('Feil kode 🙈');}
 }
 async function oppdaterStatusRåd(tving){
-  if(!aiNøkkel()||!S.profile)return;
+  if(!aiNøkkel()||!S.profile||!budsjett())return;
   const d=iDag(),nøkkelNå=d+'|'+dagsTotal(d);
   if(!tving&&S.statusRåd&&S.statusRåd.n===nøkkelNå&&Date.now()-S.statusRåd.ts<90*60*1000)return;
   if(statusRådVenter)return;statusRådVenter=true;
@@ -534,7 +520,7 @@ async function oppdaterStatusRåd(tving){
   statusRådVenter=false;
 }
 async function lagMatplan(){
-  if(!aiNøkkel()||!S.profile)return;
+  if(!aiNøkkel()||!S.profile||!budsjett())return;
   visModal('<div style="text-align:center;padding:26px 10px;"><div style="font-size:38px;">🤖</div><div style="font-weight:700;margin-top:8px;">Murph lager matplan…</div></div>');
   try{
     const d=iDag();
@@ -861,7 +847,8 @@ function slettFav(i){S.favs.splice(i,1);lagre();render();}
 function nyFavKnapp(){
   const navn=prompt('Navn på knappen (f.eks. Havregrøt):');if(!navn)return;
   const kcal=parseInt(prompt('Kalorier for ett trykk:'),10);if(!kcal)return;
-  S.favs.push({name:navn.trim(),kcal});lagre();render();toast('Knapp lagt til ⭐');
+  const ikon=(prompt('Emoji-ikon (valgfritt, f.eks. 🥣):')||'').trim();
+  S.favs.push({name:navn.trim(),kcal,ikon:ikon||'⭐'});lagre();render();toast('Knapp lagt til '+(ikon||'⭐'));
 }
 function lagreVekt(){
   const v=parseFloat(document.getElementById('vektInn').value);
@@ -870,8 +857,8 @@ function lagreVekt(){
 }
 function slettVekt(d){delete S.weights[d];lagre();render();}
 function lagreProfil(){
-  S.profile={height:+document.getElementById('i-h').value,weight:+document.getElementById('i-w').value,age:+document.getElementById('i-a').value,
-    sex:document.getElementById('i-s').value,activity:+document.getElementById('i-akt').value,pace:+document.getElementById('i-tempo').value};
+  S.profile={height:+document.getElementById('i-h').value,age:+document.getElementById('i-a').value,
+    sex:document.getElementById('i-s').value,activity:+document.getElementById('i-akt').value,pace:Math.min(1.5,Math.max(0.1,parseFloat(document.getElementById('i-tempo').value)||0.5))};
   S.budget=null;S.budgetInfo=null; // profilendring nullstiller til formel; auto tar over igjen
   lagre();toast('Profil lagret ✅');render();
 }
