@@ -455,7 +455,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.9</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-09.1</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -800,13 +800,13 @@ function murphSystem(){
   const tr=trendSerie();
   const trend=tr.length>=2?('trendvekt '+tr[tr.length-1].t+' kg ('+(tr[tr.length-1].t-tr[0].t).toFixed(1)+' kg siden '+tr[0].d+')'):'ingen veiinger ennå';
   const plan=(S.personal.plan||[]).map(x=>x.t+' '+x.navn).join(', ')||'ingen';
-  const logg=(S.log[d]||[]).map(x=>x.t+' '+x.name+' ('+x.kcal+')').join(', ')||'ingenting ennå';
+  const logg=(S.log[d]||[]).map((x,i)=>'#'+i+' '+x.t+' '+x.name+' ('+x.kcal+')').join(', ')||'ingenting ennå';
   const kroppsmål=MÅLDEF.map(x=>{const s2=målSerie(x.id);return s2.length?x.navn+' '+s2[s2.length-1].v+' cm'+(s2.length>1?' (forrige '+s2[s2.length-2].v+')':''):null;}).filter(Boolean).join(', ')||'ingen';
   const kfp2=kfpSerie();
   return 'Brukeren heter '+(p.navn||'brukeren')+' – bruk fornavnet av og til der det faller naturlig, aldri i annenhver setning. Du er Murph, brukerens personlige kostholds- og motivasjonsassistent i appen Matbudsjett. Snakk norsk. Vær varm, jordnær og kortfattet (ADHD-vennlig: få setninger, konkret neste steg). Aldri skam eller pekefinger – alltid støtte. Du er ikke lege; ved medisinske spørsmål, anbefal fastlegen.\n\n'
   +'MIN INFORMASJON (sammendrag om brukeren som DU vedlikeholder): '+(S.personal.notat||'(tomt ennå)')+'\n\n'
   +'DATA NÅ: '+(p.sex==='m'?'Mann':'Kvinne')+', '+p.age+' år, '+p.height+' cm, siste vekt '+(sisteVekt()||p.weight)+' kg. Tempo: '+p.pace+' kg/uke. Dagsbudsjett: '+budsjett()+' kcal. Spist i dag: '+dagsTotal(d)+' kcal ('+logg+'). Vekt: '+trend+'. Inntak siste 7 dager (kcal): '+inntak+'. Kroppsmål: '+kroppsmål+(kfp2.length?'. Estimert fettprosent: '+kfp2[kfp2.length-1].v+' %':'')+'. Spiseplan: '+plan+'. Anbefaling vist i appen: '+(S.personal.anbefaling||'(ingen)')+'\n\n'
-  +'HUKOMMELSE (VIKTIG): Vurder ETTER HVER melding fra brukeren om den inneholder varig viktig informasjon (preferanser, allergier, rutiner, medisiner, mål, skader, ting som funker/ikke funker). Gjør den det, oppdater «minInfo» med et komplett, ryddig sammendrag via @@ENDRING@@ – også når dere ikke avtalte noe. Dette er hukommelsen din mellom samtaler.\n\nDU KAN GJENNOMFØRE ENDRINGER I APPEN: Når dere blir enige om en endring, eller du lærer noe varig om brukeren, avslutt svaret med en egen siste linje: @@ENDRING@@{...} der {...} er gyldig JSON med ett eller flere felt: "minInfo" (skriv HELE det oppdaterte sammendraget om brukeren på nytt), "plan" (full spiseplan som [{"t":"HH:MM","navn":"..."}]), "pace" (0.25 eller 0.5 kg/uke), "varsle" (true/false), "anbefaling" (kort råd som vises i appen). Forklar alltid i selve svaret hva du endrer og hvorfor. Ingen @@ENDRING@@-linje ellers.';
+  +'HUKOMMELSE (VIKTIG): Vurder ETTER HVER melding fra brukeren om den inneholder varig viktig informasjon (preferanser, allergier, rutiner, medisiner, mål, skader, ting som funker/ikke funker). Gjør den det, oppdater «minInfo» med et komplett, ryddig sammendrag via @@ENDRING@@ – også når dere ikke avtalte noe. Dette er hukommelsen din mellom samtaler.\n\nDU KAN GJENNOMFØRE ENDRINGER I APPEN: Når dere blir enige om en endring, eller du lærer noe varig om brukeren, avslutt svaret med en egen siste linje: @@ENDRING@@{...} der {...} er gyldig JSON med ett eller flere felt: "minInfo" (skriv HELE det oppdaterte sammendraget om brukeren på nytt), "plan" (full spiseplan som [{"t":"HH:MM","navn":"..."}]), "pace" (ønsket vektnedgang 0.1–1.5 kg/uke), "varsle" (true/false), "anbefaling" (kort råd som vises i appen), "logg" (NYE måltider på dagens logg: [{"navn":"..","kcal":heltall}]), "loggEndre" (rett eksisterende poster – indeksen står som #n i dagens logg: [{"i":indeks,"kcal":heltall,"navn":"valgfritt"}]), "loggSlett" (indekser som skal slettes: [0,2]). Forklar alltid i selve svaret hva du endrer og hvorfor. Ingen @@ENDRING@@-linje ellers. ÆRLIGHETSREGEL: Du kan KUN påvirke appen gjennom @@ENDRING@@-feltene over – påstå ALDRI at noe er logget/endret/oppdatert uten at du sender tilhørende felt i DENNE meldingen, og påstå aldri at du ikke kan endre loggen, for det kan du.';
 }
 function brukEndringer(txt){
   const i=txt.indexOf('@@ENDRING@@');
@@ -825,6 +825,23 @@ function brukEndringer(txt){
       if(obj.pace===0.25||obj.pace===0.5){S.profile.pace=obj.pace;deler.push('tempo → '+String(obj.pace).replace('.',',')+' kg/uke');}
       if(typeof obj.varsle==='boolean'){S.personal.varsle=obj.varsle;deler.push('varsler '+(obj.varsle?'på':'av'));}
       if(typeof obj.anbefaling==='string'&&obj.anbefaling.trim()){S.personal.anbefaling=obj.anbefaling.trim().slice(0,500);deler.push('anbefalingen');}
+      if(Array.isArray(obj.loggSlett)){
+        const d2=iDag();
+        const idxs=obj.loggSlett.map(n=>+n).filter(n=>Number.isInteger(n)&&S.log[d2]&&S.log[d2][n]).sort((a,b)=>b-a);
+        if(idxs.length){idxs.forEach(i2=>S.log[d2].splice(i2,1));deler.push('slettet '+idxs.length+(idxs.length>1?' poster':' post'));}
+      }
+      if(Array.isArray(obj.loggEndre)){
+        const d2=iDag();let ant=0;
+        obj.loggEndre.forEach(x=>{
+          const i2=+x.i;
+          if(S.log[d2]&&S.log[d2][i2]){
+            if(+x.kcal>0)S.log[d2][i2].kcal=Math.round(+x.kcal);
+            if(x.navn)S.log[d2][i2].name=String(x.navn).slice(0,60);
+            ant++;
+          }
+        });
+        if(ant)deler.push('endret '+ant+(ant>1?' poster':' post'));
+      }
       if(Array.isArray(obj.logg)){
         const poster=obj.logg.map(x=>({navn:String(x.navn||'').slice(0,60),kcal:Math.round(+x.kcal)})).filter(x=>x.navn&&x.kcal>0);
         if(poster.length){
@@ -992,7 +1009,7 @@ oppdaterStatusRåd(false);
 loggBruk();
 setInterval(()=>{if(aktivFane==='hjem')render();},60000);
 setInterval(()=>oppdaterStatusRåd(false),1800000);
-const DENNE_VERSJON='2026-07-08.9';
+const DENNE_VERSJON='2026-07-09.1';
 async function sjekkNyVersjon(){
   try{
     const t=await fetch('index.html?v='+Date.now(),{cache:'no-store'}).then(r=>r.text());
