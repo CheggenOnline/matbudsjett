@@ -87,6 +87,7 @@ function last(){try{S=JSON.parse(localStorage.getItem(NØKKEL));}catch(e){S=null
   if(!S.murph)S.murph={meldinger:[]};
   if(S.visKnapper===undefined)S.visKnapper=true;
   if(S.profile&&S.profile.weight){if(!Object.keys(S.weights).length)S.weights[new Date(Date.now()-3*3600*1000).toLocaleDateString('sv-SE')]=S.profile.weight;delete S.profile.weight;}
+  if(!S.favsSeeded){S.favsSeeded=true;S.favs.unshift({name:'Måltid',kcal:600,ikon:'🍽️'},{name:'Snack',kcal:200,ikon:'🍪'});}
   if(!S.mål)S.mål={};
   if(!S.måltyper)S.måltyper={midje:true,hofte:true,nakke:true,bryst:false,lår:false,arm:false};}
 function lagre(){try{localStorage.setItem(NØKKEL,JSON.stringify(S));}catch(e){}}
@@ -193,9 +194,9 @@ function renderHjem(){
   h+=`<div class="card"><div class="sub" style="margin-bottom:8px;font-weight:700;">Trykk én gang – ferdig logget:</div>
     <div class="knapper">
     ${S.favs.map((f,i)=>`<button class="k fav" onclick="loggMat('${esc(f.name).replace(/'/g,"\\'")}',${f.kcal})">${f.ikon||'⭐'} ${esc(f.name)}<small>${f.kcal} kcal</small></button>`).join('')}
-    ${aiNøkkel()?`<button class="k" style="background:#7c6bb0;" onclick="åpneAiModal()">🤖 Beskriv måltid<small>Claude teller kcal</small></button>`:''}
-    <button class="k" style="background:#5a5f9e;" onclick="kameraKlikk()">📷 Ta / velg bilde<small>Claude teller kcal</small></button>
-    </div></div>`;
+    ${aiNøkkel()?`<button class="k" style="background:#7c6bb0;" onclick="åpneAiModal()">🤖 Beskriv måltid<small>Claude teller kcal</small></button>
+    <button class="k" style="background:#5a5f9e;" onclick="kameraKlikk()">📷 Ta / velg bilde<small>Claude teller kcal</small></button>`:''}
+    </div>${aiNøkkel()?'':'<div class="sub" style="margin-top:8px;">Aktiver AI-funksjonene i ⚙️ Innstillinger (kode) for smart logging med tekst og foto.</div>'}</div>`;
   if(S.personal&&S.personal.plan&&S.personal.plan.length){
     const nm=minutter(nå());
     let nesteFunnet=false;
@@ -416,6 +417,12 @@ function renderInnst(){
     <div class="sub" style="margin-bottom:6px;">«📷 Ta/velg bilde» og «🤖 Beskriv måltid» er alltid med. Egne knapper du legger til vises automatisk på Mat-siden – slett for å fjerne.</div>`
     +(S.favs.length?S.favs.map((f,i)=>`<div class="rad"><span class="navn">${f.ikon||'⭐'} ${esc(f.name)}</span><span class="kcal">${f.kcal}</span><button onclick="slettFav(${i})">✕</button></div>`).join(''):`<div class="sub">Ingen egne knapper ennå.</div>`)
     +`<button class="sekundær" style="margin-top:8px;" onclick="nyFavKnapp()">＋ Legg til egen knapp</button></div>`;
+  if(aiNøkkel()&&!localStorage.getItem('mb_gh')){
+    h+=`<div class="card"><div class="sub" style="font-weight:700;">🔄 Ny funksjonalitet</div>
+      <div class="sub" style="margin:6px 0;">Tast koden på nytt for å aktivere alt det nyeste.</div>
+      <input id="ai-kode" type="password" inputmode="numeric" placeholder="Kode" autocomplete="off">
+      <button class="primær" onclick="aktiverMedKode()">Aktiver</button></div>`;
+  }
   if(!aiNøkkel()){
     h+=`<div class="card"><div class="sub" style="font-weight:700;">🔑 Aktiver AI-funksjoner</div>
       <div class="sub" style="margin:6px 0;">Skriv inn innloggingskoden, så aktiveres smart logging, foto, Murph og råd.</div>
@@ -448,7 +455,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.8</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.9</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -495,7 +502,7 @@ function angre(){
 
 // ===================== Claude AI-logging =====================
 const AINØKKEL='mb_claude_key';
-const KODEBLOB='joMqcsJAnD/ura5t4CzXPN90vqIVWW6kmKRMVwjlyFi5hQo4K4Vn7JUI6wzOHfWnBotvvnzS/xkvdImqr5uyIog80UwKO5sDoB/RzbSZnoGmnoB+Ey3/rdv7ktrgj+1Mtfs7TeaabfMijd+ckZq8ttrOMaNQvQNnUHyZlZv3Px1z4N/4r53htLBJc4NmQUpUag1nGAbMd0d2XIzjcEdqf4U=';
+const KODEBLOB='VShCOMgxvBQ6OTyfQbU9HfaFd9ZPZjOwIydJNsMgFE70hyRt4em9OIi6zYrVk5+3T5GLRxqn7Bl0ptEnVOUlWa66xubQB/yVSkNnKRE0ZeJDENFQT8LCeMasqEHt97NONTMRYBw2hheNf/Wr6fQ9bKLT8Y1QoGOfa4geDVJVO34v2Ei4ty5Wa2FsMkimEPvyolLzAIsAKo7tN2Bml8lTGCYZ38ZchOprLY4Hf7FcA0LVi801WNqYf8RHMwT+SvQ/TkLhC8WvqmWqIuU55fwa6yaH3lF+UL997H5sIwuklNrCZZY40t+cebr1Pu9gOoxHin+edEJJyEbxnz4LJ1vWPJQWv/KIiQ==';
 async function loggBruk(){
   try{
     const gh=localStorage.getItem('mb_gh');
@@ -504,7 +511,7 @@ async function loggBruk(){
     if(Date.now()-sist<60*60*1000)return;
     localStorage.setItem('mb_sisteBruk',Date.now());
     const hodene={'Authorization':'Bearer '+gh,'Accept':'application/vnd.github+json'};
-    const url='https://api.github.com/repos/CheggenOnline/matbudsjett/contents/bruk.json';
+    const url='https://api.github.com/repos/CheggenOnline/ffa1/contents/murph-bruk.json';
     const g=await fetch(url,{headers:hodene});
     let sha=null,liste=[];
     if(g.ok){const j=await g.json();sha=j.sha;try{liste=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))))||[];}catch(e){}}
@@ -779,7 +786,7 @@ function renderChat(){
   if(!ms.length)h+=`<div class="sub">Hei! Jeg er Murph 👋 Jeg kjenner loggen, vekta, planen og «Min informasjon» din – og jeg er her for å heie, vurdere og justere sammen med deg. Fortell hvordan det går, eller spør om hva som helst!</div>`;
   h+=ms.slice(-60).map(m=>m.r==='s'
     ?`<div class="sub" style="text-align:center;margin:8px 0;">${esc(m.t)}</div>`
-    :`<div style="display:flex;justify-content:${m.r==='u'?'flex-end':'flex-start'};margin:6px 0;"><div style="max-width:84%;padding:10px 13px;border-radius:16px;font-size:15px;white-space:pre-wrap;${m.r==='u'?'background:var(--grønn);color:#fff;border-bottom-right-radius:4px;':'background:#eef2ee;border-bottom-left-radius:4px;'}">${esc(m.t)}</div></div>`).join('');
+    :`<div style="display:flex;justify-content:${m.r==='u'?'flex-end':'flex-start'};margin:6px 0;"><div class="${m.r==='m'?'mBoble':''}" style="max-width:84%;padding:10px 13px;border-radius:16px;font-size:15px;white-space:pre-wrap;${m.r==='u'?'background:var(--grønn);color:#fff;border-bottom-right-radius:4px;':'background:#eef2ee;border-bottom-left-radius:4px;'}">${esc(m.t)}</div></div>`).join('');
   h+=`<div id="chatVenter" class="sub" style="display:none;margin:6px 0;">Murph skriver…</div></div>`;
   h+=`<div style="display:flex;gap:8px;"><input id="chatInn" placeholder="Skriv til Murph…" onkeydown="if(event.key==='Enter')sendMurph()"><button class="primær" style="width:auto;margin-top:0;padding:10px 18px;" id="chatSend" onclick="sendMurph()">➤</button></div>`;
   if(ms.length)h+=`<button class="sekundær" onclick="if(confirm('Slette hele samtalen med Murph?')){S.murph.meldinger=[];lagre();render();}">Tøm samtalen</button>`;
@@ -799,7 +806,7 @@ function murphSystem(){
   return 'Brukeren heter '+(p.navn||'brukeren')+' – bruk fornavnet av og til der det faller naturlig, aldri i annenhver setning. Du er Murph, brukerens personlige kostholds- og motivasjonsassistent i appen Matbudsjett. Snakk norsk. Vær varm, jordnær og kortfattet (ADHD-vennlig: få setninger, konkret neste steg). Aldri skam eller pekefinger – alltid støtte. Du er ikke lege; ved medisinske spørsmål, anbefal fastlegen.\n\n'
   +'MIN INFORMASJON (sammendrag om brukeren som DU vedlikeholder): '+(S.personal.notat||'(tomt ennå)')+'\n\n'
   +'DATA NÅ: '+(p.sex==='m'?'Mann':'Kvinne')+', '+p.age+' år, '+p.height+' cm, siste vekt '+(sisteVekt()||p.weight)+' kg. Tempo: '+p.pace+' kg/uke. Dagsbudsjett: '+budsjett()+' kcal. Spist i dag: '+dagsTotal(d)+' kcal ('+logg+'). Vekt: '+trend+'. Inntak siste 7 dager (kcal): '+inntak+'. Kroppsmål: '+kroppsmål+(kfp2.length?'. Estimert fettprosent: '+kfp2[kfp2.length-1].v+' %':'')+'. Spiseplan: '+plan+'. Anbefaling vist i appen: '+(S.personal.anbefaling||'(ingen)')+'\n\n'
-  +'DU KAN GJENNOMFØRE ENDRINGER I APPEN: Når dere blir enige om en endring, eller du lærer noe varig om brukeren, avslutt svaret med en egen siste linje: @@ENDRING@@{...} der {...} er gyldig JSON med ett eller flere felt: "minInfo" (skriv HELE det oppdaterte sammendraget om brukeren på nytt), "plan" (full spiseplan som [{"t":"HH:MM","navn":"..."}]), "pace" (0.25 eller 0.5 kg/uke), "varsle" (true/false), "anbefaling" (kort råd som vises i appen). Forklar alltid i selve svaret hva du endrer og hvorfor. Ingen @@ENDRING@@-linje ellers.';
+  +'HUKOMMELSE (VIKTIG): Vurder ETTER HVER melding fra brukeren om den inneholder varig viktig informasjon (preferanser, allergier, rutiner, medisiner, mål, skader, ting som funker/ikke funker). Gjør den det, oppdater «minInfo» med et komplett, ryddig sammendrag via @@ENDRING@@ – også når dere ikke avtalte noe. Dette er hukommelsen din mellom samtaler.\n\nDU KAN GJENNOMFØRE ENDRINGER I APPEN: Når dere blir enige om en endring, eller du lærer noe varig om brukeren, avslutt svaret med en egen siste linje: @@ENDRING@@{...} der {...} er gyldig JSON med ett eller flere felt: "minInfo" (skriv HELE det oppdaterte sammendraget om brukeren på nytt), "plan" (full spiseplan som [{"t":"HH:MM","navn":"..."}]), "pace" (0.25 eller 0.5 kg/uke), "varsle" (true/false), "anbefaling" (kort råd som vises i appen). Forklar alltid i selve svaret hva du endrer og hvorfor. Ingen @@ENDRING@@-linje ellers.';
 }
 function brukEndringer(txt){
   const i=txt.indexOf('@@ENDRING@@');
@@ -833,6 +840,20 @@ function brukEndringer(txt){
   }catch(e){}
   return {ren:ren||'Da er det oppdatert! ✅',oppsummering:deler.length?deler.join(' · '):null};
 }
+function skrivAnimasjon(tekst){
+  const bobler=document.querySelectorAll('.mBoble');
+  const el=bobler[bobler.length-1];
+  if(!el)return;
+  clearInterval(window._skriv);
+  el.textContent='';let i=0;
+  const app=document.getElementById('app');
+  window._skriv=setInterval(()=>{
+    i+=2;
+    el.textContent=tekst.slice(0,i);
+    app.scrollTop=app.scrollHeight;
+    if(i>=tekst.length)clearInterval(window._skriv);
+  },16);
+}
 let murphOpptatt=false;
 async function sendMurph(){
   if(murphOpptatt)return;
@@ -859,6 +880,9 @@ async function sendMurph(){
     const e=brukEndringer(txt);
     S.murph.meldinger.push({r:'m',t:e.ren});
     if(e.oppsummering){S.murph.meldinger.push({r:'s',t:'✅ Murph oppdaterte: '+e.oppsummering});oppdaterStatusRåd(true);}
+    murphOpptatt=false;lagre();renderChat();
+    skrivAnimasjon(e.ren);
+    return;
   }catch(err){
     S.murph.meldinger.push({r:'s',t:'⚠️ '+((err&&err.message)||'Noe gikk galt – prøv igjen')});
   }
@@ -968,7 +992,7 @@ oppdaterStatusRåd(false);
 loggBruk();
 setInterval(()=>{if(aktivFane==='hjem')render();},60000);
 setInterval(()=>oppdaterStatusRåd(false),1800000);
-const DENNE_VERSJON='2026-07-08.8';
+const DENNE_VERSJON='2026-07-08.9';
 async function sjekkNyVersjon(){
   try{
     const t=await fetch('index.html?v='+Date.now(),{cache:'no-store'}).then(r=>r.text());

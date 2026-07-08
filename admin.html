@@ -32,6 +32,9 @@
 <script>
 const KODEBLOB='joMqcsJAnD/ura5t4CzXPN90vqIVWW6kmKRMVwjlyFi5hQo4K4Vn7JUI6wzOHfWnBotvvnzS/xkvdImqr5uyIog80UwKO5sDoB/RzbSZnoGmnoB+Ey3/rdv7ktrgj+1Mtfs7TeaabfMijd+ckZq8ttrOMaNQvQNnUHyZlZv3Px1z4N/4r53htLBJc4NmQUpUag1nGAbMd0d2XIzjcEdqf4U=';
 function esc(s){return String(s).replace(/</g,'&lt;');}
+if(localStorage.getItem('mb_admin_ok')==='1'){
+  document.addEventListener('DOMContentLoaded',()=>{document.getElementById('lås').style.display='none';document.getElementById('innhold').style.display='block';vis();});
+}
 async function låsOpp(){
   const kode=document.getElementById('kode').value;
   try{
@@ -40,6 +43,7 @@ async function låsOpp(){
     const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:rå.slice(0,16),iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
     await crypto.subtle.decrypt({name:'AES-GCM',iv:rå.slice(16,28)},k,rå.slice(28));
   }catch(e){document.getElementById('feil').textContent='Feil kode 🙈';return;}
+  localStorage.setItem('mb_admin_ok','1');
   document.getElementById('lås').style.display='none';
   document.getElementById('innhold').style.display='block';
   vis();
@@ -50,7 +54,7 @@ function fmt(ts){
 }
 async function vis(){
   let liste=[];
-  try{liste=await fetch('bruk.json?v='+Date.now()).then(r=>r.json());}catch(e){}
+  try{liste=await fetch('https://cheggenonline.github.io/ffa1/murph-bruk.json?v='+Date.now()).then(r=>r.json());}catch(e){}
   if(!Array.isArray(liste)||!liste.length){
     document.getElementById('brukere').innerHTML='<div class="sub">Ingen bruk registrert ennå. (Brukerne må ha aktivert AI-funksjoner med kode etter at sporing ble slått på.)</div>';
     document.getElementById('logg').innerHTML='';return;
