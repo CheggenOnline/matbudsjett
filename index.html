@@ -51,6 +51,13 @@
   .to-kol{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   svg text{font-family:inherit;}
   #modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none;align-items:flex-end;justify-content:center;}
+  @media (display-mode: standalone){
+    body{min-height:100vh;position:relative;}
+    #app{height:100vh;}
+    .tabs{position:absolute;}
+    #toast{position:absolute;}
+    #modal{position:absolute;}
+  }
   #modal .boks{background:#fff;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));width:100%;max-width:520px;max-height:75vh;overflow:auto;}
 </style>
 </head>
@@ -439,7 +446,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.5</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.6</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -946,7 +953,7 @@ function dbgVis(){
 setInterval(dbgVis,1000);setTimeout(dbgVis,300);
 window.addEventListener('resize',dbgVis);
 
-const DENNE_VERSJON='2026-07-08.5';
+const DENNE_VERSJON='2026-07-08.6';
 async function sjekkNyVersjon(){
   try{
     const t=await fetch('index.html?v='+Date.now(),{cache:'no-store'}).then(r=>r.text());
