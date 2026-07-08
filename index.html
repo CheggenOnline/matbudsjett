@@ -62,8 +62,6 @@
 </style>
 </head>
 <body>
-<div id="dbg" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:rgba(0,0,0,.82);color:#0f0;font:10px/1.5 ui-monospace,Menlo,monospace;padding:calc(2px + env(safe-area-inset-top,0px)) 6px 4px;white-space:pre-wrap;pointer-events:none;"></div>
-<div id="dbgProbe" style="position:fixed;left:-99px;width:1px;height:env(safe-area-inset-bottom, 0px);visibility:hidden;"></div>
 <div id="app"></div>
 <div class="tabs">
   <button id="tab-hjem" class="on" onclick="vis('hjem')"><span class="ikon">🥑</span>Mat</button>
@@ -446,7 +444,7 @@ function renderInnst(){
     <button class="sekundær" style="color:#b23; " onclick="nullstill()">🗑️ Slett alle data</button>
     <div class="sub" style="margin-top:10px;">Dataene ligger kun på denne telefonen. Ta en backup i ny og ne.</div></div>`;
   }
-  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.6</div>`;
+  h+=`<div class="sub" style="text-align:center;margin-top:8px;color:#bbb;">Versjon 2026-07-08.7</div>`;
   document.getElementById('app').innerHTML=h;
 }
 
@@ -936,24 +934,7 @@ oppdaterStatusRåd(false);
 loggBruk();
 setInterval(()=>{if(aktivFane==='hjem')render();},60000);
 setInterval(()=>oppdaterStatusRåd(false),1800000);
-function dbgVis(){
-  try{
-    const probe=document.getElementById('dbgProbe');
-    const tabs=document.querySelector('.tabs');
-    const tb=tabs?tabs.getBoundingClientRect().bottom:-1;
-    document.getElementById('dbg').textContent=
-      'v'+((document.documentElement.outerHTML.match(/Versjon ([\d.\-]+)/)||[,'?'])[1])
-      +' | display-mode standalone: '+matchMedia('(display-mode: standalone)').matches
-      +' | navigator.standalone: '+navigator.standalone
-      +'\ninnerH: '+window.innerHeight+' | outerH: '+window.outerHeight+' | screen.h: '+screen.height
-      +'\nenv(safe-area-inset-bottom): '+probe.offsetHeight+'px'
-      +'\ntabs.rect.bottom: '+tb.toFixed(1)+' | innerH-tabs.bottom: '+(window.innerHeight-tb).toFixed(1);
-  }catch(e){try{document.getElementById('dbg').textContent='dbg-feil: '+e.message;}catch(_){}}
-}
-setInterval(dbgVis,1000);setTimeout(dbgVis,300);
-window.addEventListener('resize',dbgVis);
-
-const DENNE_VERSJON='2026-07-08.6';
+const DENNE_VERSJON='2026-07-08.7';
 async function sjekkNyVersjon(){
   try{
     const t=await fetch('index.html?v='+Date.now(),{cache:'no-store'}).then(r=>r.text());
